@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Namma Santhai — Buy • Sell • Support Our Farmers</title>
+<meta name="description" content="Namma Santhai — a livestock & farm marketplace for Tamil Nadu. Buy and sell goats, sheep, cattle, feed, produce and vehicles near you.">
+<meta name="theme-color" content="#0f4f2c">
+<meta property="og:title" content="Namma Santhai — Livestock Marketplace">
+<meta property="og:description" content="Buy & sell goats, sheep and cattle near you. Support our farmers.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="icons/icon-512.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Noto+Sans:wght@400;600;700;800&family=Noto+Sans+Tamil:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<p class="stage-hint">Private PWA trial — tap through the full journey. <b>Simulated OTP, demo data</b> (no SMS, no real backend yet).</p>
+
+<div class="phone" role="application" aria-label="Namma Santhai app">
+  <div class="statusbar">
+    <span>9:41</span>
+    <span class="sb-right">▮▮▮ · Wi-Fi · 86%</span>
+  </div>
+
+  <main class="viewport" id="app" aria-live="polite"><!-- rendered by app.js --></main>
+
+  <nav class="bottomnav" id="bottomnav" hidden aria-label="Primary"></nav>
+
+  <div class="toast" id="toast" role="status"></div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

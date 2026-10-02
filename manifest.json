@@ -1,0 +1,18 @@
+{
+  "name": "Namma Santhai — Livestock Marketplace",
+  "short_name": "Namma Santhai",
+  "id": "/namma-santhai/",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f1e7",
+  "theme_color": "#0f4f2c",
+  "description": "Buy and sell goats, sheep, cattle, feed and equipment near you. Support our farmers.",
+  "lang": "en",
+  "categories": ["shopping", "business"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

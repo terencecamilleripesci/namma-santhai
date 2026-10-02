@@ -1,0 +1,5 @@
+# internal strategy docs — not for the public preview repo
+AUDIT.md
+BRIEF.md
+*.log
+.DS_Store
