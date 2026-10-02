@@ -1,0 +1,5 @@
+# GitHub Pages: publish the app only — never the backend source.
+exclude:
+  - server
+  - AUDIT.md
+  - BRIEF.md
