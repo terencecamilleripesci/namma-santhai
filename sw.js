@@ -1,6 +1,6 @@
 /* Namma Santhai service worker — NETWORK-FIRST, cache fallback.
    Bump CACHE on every deploy or the phone serves stale files. */
-const CACHE = 'namma-santhai-v4';
+const CACHE = 'namma-santhai-v5';
 const ASSETS = [
   './', './index.html', './css/styles.css', './js/app.js',
   './manifest.json', './assets/temple.svg', './assets/share-card.jpg',

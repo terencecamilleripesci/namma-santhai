@@ -553,3 +553,10 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 /* chips keep their full height and scroll sideways cleanly */
 .chips{min-height:52px;align-items:center;-webkit-overflow-scrolling:touch;}
 .chip{white-space:nowrap;}
+
+/* ---------- FIX: the `hidden` attribute must beat our display rules.
+   .install-bar / .bottomnav set display:flex, which overrode the UA
+   [hidden]{display:none}, so hiding them in JS did nothing. ---------- */
+[hidden]{display:none!important;}
+/* keep the install bar clear of the bottom navigation */
+.install-bar{bottom:92px;}
