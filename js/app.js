@@ -42,6 +42,8 @@
       welcomeBlurb:"Your local market for goats, sheep, cattle, farm goods and vehicles — near you, in Tamil Nadu.",
       letsBegin:"Let's Begin", trialNote:"Private trial — simulated login, no SMS is sent.",
       enterMobile:"Enter your mobile number", otpSub:"We'll send a 6-digit code to verify your number.",
+      noOtpSub:"Enter your mobile number to sign in. No password needed.",
+      noOtpNote:"Trial: signing in with a number only. No code is sent and the number is not verified.",
       mobileLabel:"Mobile number", sendOtp:"Send OTP", or:"OR", google:"Continue with Google",
       privacyNote:"Your number is private. Buyers never see it unless you turn on contact.",
       errPhone:"Enter a valid 10-digit Indian mobile number",
@@ -116,6 +118,8 @@
       tagline:"வாங்க · விற்க · விவசாயிகளை ஆதரிக்க", chooseLang:"உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்",
       welcomeBlurb:"ஆடு, செம்மறி, கால்நடை, விவசாயப் பொருட்கள் மற்றும் வாகனங்களுக்கான உங்கள் உள்ளூர் சந்தை — தமிழ்நாட்டில், உங்களுக்கு அருகில்.",
       letsBegin:"தொடங்கலாம்", trialNote:"தனிப்பட்ட சோதனை — மாதிரி உள்நுழைவு, SMS அனுப்பப்படாது.",
+      noOtpSub:"உள்நுழைதல்: மொபைல் எண் மட்டும் போதும்.",
+      noOtpNote:"சோதனை: எண் மூலம் மட்டும் உள்நுழைவு.",
       enterMobile:"உங்கள் மொபைல் எண்ணை உள்ளிடவும்", otpSub:"உங்கள் எண்ணைச் சரிபார்க்க 6-இலக்க குறியீடு அனுப்புவோம்.",
       mobileLabel:"மொபைல் எண்", sendOtp:"OTP அனுப்பு", or:"அல்லது", google:"Google மூலம் தொடரவும்",
       privacyNote:"உங்கள் எண் தனிப்பட்டது. தொடர்பை இயக்கும் வரை வாங்குபவர்கள் பார்க்க முடியாது.",
@@ -200,7 +204,10 @@
     murugan:{id:"murugan",name:"Murugan P",initial:"M",verified:true,online:true,seen:0,call:true,whatsapp:true,number:"+919845612300",since:"Feb 2024",locality:"Dindigul"},
     arun:{id:"arun",name:"Arun Kumar",initial:"A",verified:true,online:false,seen:130,call:true,whatsapp:false,number:"+919834567890",since:"Mar 2024",locality:"Madurai"}
   };
-  function sellerOf(l){ return l.owner==="me" ? meSeller() : (SELLERS[l.owner]||SELLERS.ramesh); }
+  function sellerOf(l){
+    if(l.ownerObj) return l.ownerObj;          // live mode: real server user
+    return l.owner==="me" ? meSeller() : (SELLERS[l.owner]||SELLERS.ramesh);
+  }
   function meSeller(){ return {id:"me",name:state.user.name||"You",initial:(state.user.name||"Y")[0].toUpperCase(),verified:false,online:true,seen:0,call:state.user.call,whatsapp:state.user.whatsapp,number:state.user.phone?("+91"+state.user.phone):"",since:"today",locality:state.user.locality}; }
 
   var GOATS = ["assets/goat-jamunapari.jpg","assets/goat-boer.jpg","assets/goat-kanni.jpg","assets/goat-karuppu.jpg","assets/goat-tellicherry.jpg"];
@@ -352,16 +359,21 @@
   };
 
   S.phone=function(){
+    var live = !!(window.NS_API && window.NS_API.enabled);
     return '<section class="screen active">'+bar({back:"welcome",brand:true})+'<div class="pad">'
-      +'<h1 class="h1">'+t("enterMobile")+'</h1><p class="sub">'+t("otpSub")+'</p>'
-      +'<div class="field" id="f-phone"><label>'+t("mobileLabel")+'</label>'
+      +'<h1 class="h1">'+t("enterMobile")+'</h1>'
+      +'<p class="sub">'+(live?t("noOtpSub"):t("otpSub"))+'</p>'
+      +'<div class="field" id="f-phone"><label>'+t("mobileLabel")+' <span class="req">*</span></label>'
       +'<div class="input-group"><span class="cc">🇮🇳 +91</span>'
       +'<input id="phone" type="tel" inputmode="numeric" maxlength="10" placeholder="98765 43210" value="'+esc(state.pendingPhone||"")+'"></div>'
       +'<div class="err-msg">'+t("errPhone")+'</div></div>'
-      +'<button class="btn btn-primary" id="send-otp">'+t("sendOtp")+'</button>'
-      +'<div class="divider">'+t("or")+'</div>'
-      +'<button class="btn btn-outline" id="google"><span style="font-weight:800;color:#4285F4">G</span> '+t("google")+'</button>'
+      +(live?'<div class="field"><label>'+t("yourName")+'</label>'
+        +'<input class="input" id="signin-name" placeholder="Ramesh Kumar" value="'+esc(state.user.name||"")+'"></div>':"")
+      +'<button class="btn btn-primary" id="send-otp">'+(live?t("continue"):t("sendOtp"))+'</button>'
+      +(live?'':'<div class="divider">'+t("or")+'</div>'
+        +'<button class="btn btn-outline" id="google"><span style="font-weight:800;color:#4285F4">G</span> '+t("google")+'</button>')
       +'<p class="hint center" style="margin-top:16px">🔒 '+t("privacyNote")+'</p>'
+      +(live?'<p class="hint center" style="margin-top:8px"><span class="demo-badge">TEST</span> '+t("noOtpNote")+'</p>':"")
       +'</div></section>';
   };
 
@@ -606,12 +618,12 @@
 
   S.messages=function(){
     var body = state.convos.length ? '<div class="threads">'+state.convos.map(function(c){
-      var s=SELLERS[c.withKey]||{name:"User",initial:"U"}; var l=byId(c.listing);
+      var s=c.other||SELLERS[c.withKey]||{name:"User",initial:"U"}; var l=byId(c.listing);
       var last=c.msgs[c.msgs.length-1];
       return '<div class="thread" data-chat="'+c.id+'"><div class="avatar">'+s.initial+'</div>'
         +'<div class="tinfo"><div class="tname">'+esc(s.name)+'<span class="ttime">'+(last?last.t:"")+'</span></div>'
         +'<div class="tlast">'+(last?esc(last[lang]||last.en):"")+'</div>'
-        +'<div class="tsub">🐐 '+(l?esc(l.title)+' · '+INR(l.price):"")+'</div></div>'
+        +'<div class="tsub">🐐 '+(c.sub?esc(c.sub):(l?esc(l.title)+' · '+INR(l.price):""))+'</div></div>'
         +(c.unread?'<span class="badge-count">'+c.unread+'</span>':"")+'</div>';
     }).join("")+'</div>' : '<div class="empty"><div class="ee">💬</div><p>'+t("noChats")+'</p></div>';
     return '<section class="screen active">'+bar({brand:true,title:t("messages"),lang:true})+body+'</section>';
@@ -620,7 +632,7 @@
   S.chat=function(p){
     var c=convById(p.id); if(!c) return S.messages();
     c.unread=0; save();
-    var s=SELLERS[c.withKey]||{name:"User",initial:"U",online:false,seen:5}; var l=byId(c.listing);
+    var s=c.other||SELLERS[c.withKey]||{name:"User",initial:"U",online:false,seen:5}; var l=byId(c.listing);
     return '<section class="screen active" style="padding-bottom:0">'
       +'<div class="appbar"><button class="back" data-go="messages" aria-label="Back">←</button>'
       +'<div class="chat-head"><div class="avatar">'+s.initial+'</div>'
@@ -730,6 +742,17 @@
       document.getElementById("send-otp").addEventListener("click",function(){
         var v=ph.value.trim();
         if(!/^[6-9]\d{9}$/.test(v)){ document.getElementById("f-phone").classList.add("invalid"); return; }
+        // LIVE: number IS the login. No OTP, no password.
+        if(API && API.enabled){
+          var nm=(document.getElementById("signin-name")||{}).value||"";
+          var btn=this; btn.disabled=true; btn.textContent=t("saving");
+          API.signin(v,nm.trim()).then(function(r){
+            API.setToken(r.token); startLive(r.user);
+            toast(t("loginToast"));
+            go(r.user.name ? "home" : "profile");
+          }).catch(function(e){ btn.disabled=false; btn.textContent=t("continue"); apiFail(e); });
+          return;
+        }
         state.pendingPhone=v; state.otp={code:genOtp(),attempts:0}; save();
         toast(t("otpSent")); go("otp");
       });
@@ -757,7 +780,16 @@
       document.getElementById("save-profile").addEventListener("click",function(){
         var n=document.getElementById("pname").value.trim();
         if(!n){ document.getElementById("f-name").classList.add("invalid"); return; }
-        state.user.name=n; state.user.locality=document.getElementById("ploc").value.trim()||state.user.locality;
+        var loc=document.getElementById("ploc").value.trim()||state.user.locality;
+        if(LIVE){
+          var b=this; b.disabled=true; b.textContent=t("saving");
+          API.updateMe({name:n,locality:loc}).then(function(r){
+            state.user.name=r.user.name; state.user.locality=r.user.locality||loc; save();
+            toast(t("savedToast")); go("home");
+          }).catch(function(e){ b.disabled=false; b.textContent=t("continue"); apiFail(e); });
+          return;
+        }
+        state.user.name=n; state.user.locality=loc;
         state.user.phone=state.pendingPhone; state.onboarded=true; save();
         toast(t("loginToast")); go("home");
       });
@@ -782,10 +814,19 @@
       document.getElementById("submit-ad").addEventListener("click",function(){ submitAd(); });
     }
     if(route==="notifications"){
-      var mr=document.getElementById("mark-read"); mr.addEventListener("click",function(){ state.notifs.forEach(function(n){n.unread=false;}); toast(t("markedRead")); go("notifications"); });
+      var mr=document.getElementById("mark-read"); mr.addEventListener("click",function(){
+        state.notifs.forEach(function(n){n.unread=false;});
+        if(LIVE){ API.markRead().then(function(){ toast(t("markedRead")); go("notifications"); }).catch(apiFail); return; }
+        toast(t("markedRead")); go("notifications"); });
     }
     if(route==="chat") wireChat();
     if(route==="settings") wireSettings();
+    if(route==="myprofile"){
+      var lo2=document.getElementById("logout");
+      if(lo2) lo2.addEventListener("click",function(){
+        if(LIVE){ API.logout().catch(function(){}); API.setToken(null); LIVE=false; }
+        state.onboarded=false; save(); _go("welcome"); });
+    }
   }
 
   function resendDelegate(e){
@@ -835,18 +876,42 @@
       id="u"+(state.nextId++);
       state.listings.unshift(L({id:id,owner:"me",type:d.type,category:d.category,title:d.title,price:parseInt(d.price,10),unit:d.unit,qty:d.qty,desc:d.desc,photos:d.photos.slice(),loc:JSON.parse(JSON.stringify(d.loc)),status:"pending",views:0,specs:{}}));
     }
+    if(LIVE){
+      var payload={type:d.type,category:d.category,title:d.title,price:parseInt(d.price,10),
+        unit:d.unit,qty:d.qty||1,desc:d.desc,photos:d.photos.slice(),
+        loc:{district:d.loc.district||"",village:d.loc.village||"",
+             locality:d.loc.locality||"", lat:d.loc.mode==="gps"?9.93:null, lon:d.loc.mode==="gps"?78.12:null}};
+      var done=function(){ state.draft=null; save(); toast(t("postedToast")); go("success"); };
+      var fail=function(e){ if(btn){btn.disabled=false;btn.textContent=t("submitApproval");} apiFail(e); };
+      if(d.editId) API.editListing(d.editId,payload).then(done).catch(fail);
+      else API.createListing(payload).then(done).catch(fail);
+      return;
+    }
     state.draft=null; save();
     toast(t("postedToast")); go("success");
   }
 
   function wireChat(){
     var body=document.getElementById("chat-body"); if(body) body.scrollTop=body.scrollHeight;
+    if(LIVE){
+      var cid0=(document.getElementById("chat-send")||{}).getAttribute
+        ? document.getElementById("chat-send").getAttribute("data-cid") : null;
+      if(cid0) API.messages(cid0).then(function(r){
+        var c=convById(cid0); if(!c) return;
+        c.msgs=(r.messages||[]).map(function(m){
+          return {who:m.mine?"me":"them", en:m.body, ta:m.body, t:timeAgo(m.at,lang)};
+        });
+        if(r.other) c.other=mapUser(r.other);
+        save(); if(route==="chat") renderChatBody(c);
+      }).catch(function(){});
+    }
     var inp=document.getElementById("chat-text");
     var sendBtn=document.getElementById("chat-send");
     function send(){
       var v=inp.value.trim(); if(!v) return; var cid=sendBtn.getAttribute("data-cid"); var c=convById(cid);
       c.msgs.push({who:"me",en:v,ta:v,t:t("justNow")}); inp.value=""; save();
       renderChatBody(c);
+      if(LIVE){ API.sendMessage(cid,v).catch(apiFail); return; }
       setTimeout(function(){ c.msgs.push({who:"them",en:"Ok 👍",ta:"சரி 👍",t:t("justNow")}); save(); if(route==="chat") renderChatBody(c); },900);
     }
     sendBtn.addEventListener("click",send);
@@ -865,6 +930,10 @@
     }); });
     document.querySelectorAll("[data-setradius]").forEach(function(b){ b.addEventListener("click",function(){ state.user.alerts.radius=+this.getAttribute("data-setradius"); go("settings"); }); });
     var adm=document.querySelector("[data-admin]"); adm&&adm.addEventListener("click",function(){ state.role=state.role==="admin"?"user":"admin"; save(); go("settings"); });
+    var lo=document.getElementById("logout");
+    if(lo) lo.addEventListener("click",function(){
+      if(LIVE){ API.logout().catch(function(){}); API.setToken(null); LIVE=false; }
+      state.onboarded=false; save(); _go("welcome"); });
     var rep=document.getElementById("replay"); rep&&rep.addEventListener("click",function(){ go("welcome"); });
     var del=document.getElementById("del-account"); del&&del.addEventListener("click",function(){ localStorage.removeItem(LS); load(); toast(t("resetToast")); go("welcome"); });
     var lh=document.getElementById("loc-help"); lh&&lh.addEventListener("click",function(){ toast(t("locDeniedHelp")); });
@@ -887,10 +956,18 @@
     var sh=el.getAttribute("data-share"); if(sh){ var l2=byId(sh); toast(t("waToast")); setTimeout(function(){ window.open("https://wa.me/?text="+encodeURIComponent(l2.title+" — "+INR(l2.price)),"_blank"); },300); return; }
     var nf=el.getAttribute("data-notif"); if(nf){ openNotif(nf); return; }
     var ed=el.getAttribute("data-edit"); if(ed){ editListing(ed); return; }
-    var sd=el.getAttribute("data-sold"); if(sd){ var ls=byId(sd); ls.status="sold"; save(); toast(t("soldToast")); go("mylistings",{tab:"active"}); return; }
-    var dl=el.getAttribute("data-del"); if(dl){ var idx=state.listings.indexOf(byId(dl)); if(idx>=0) state.listings.splice(idx,1); save(); toast(t("deletedToast")); go("mylistings",{tab:"active"}); return; }
+    var sd=el.getAttribute("data-sold"); if(sd){
+      if(LIVE){ API.editListing(sd,{status:"sold"}).then(function(){ toast(t("soldToast")); go("mylistings",{tab:"active"}); }).catch(apiFail); return; }
+      var ls=byId(sd); ls.status="sold"; save(); toast(t("soldToast")); go("mylistings",{tab:"active"}); return; }
+    var dl=el.getAttribute("data-del"); if(dl){
+      if(LIVE){ API.deleteListing(dl).then(function(){ toast(t("deletedToast")); go("mylistings",{tab:"active"}); }).catch(apiFail); return; }
+      var idx=state.listings.indexOf(byId(dl)); if(idx>=0) state.listings.splice(idx,1); save(); toast(t("deletedToast")); go("mylistings",{tab:"active"}); return; }
     var mt=el.getAttribute("data-mytab"); if(mt){ go("mylistings",{tab:mt}); return; }
-    var tg=el.getAttribute("data-toggle"); if(tg){ state.user[tg]=!state.user[tg]; el.classList.toggle("on"); el.setAttribute("aria-checked",state.user[tg]); save(); toast(t("savedToast")); return; }
+    var tg=el.getAttribute("data-toggle"); if(tg){ state.user[tg]=!state.user[tg]; el.classList.toggle("on");
+      el.setAttribute("aria-checked",state.user[tg]); save();
+      if(LIVE){ var pch={}; pch[tg==="call"?"allow_call":"allow_whatsapp"]=state.user[tg];
+        API.updateMe(pch).then(function(){ toast(t("savedToast")); }).catch(apiFail); }
+      else toast(t("savedToast")); return; }
     var ap=el.getAttribute("data-approve"); if(ap){ approve(ap); return; }
     var rj=el.getAttribute("data-reject"); if(rj){ var rr=document.getElementById("rr-"+rj); rr&&rr.classList.toggle("show"); return; }
     var cr=el.getAttribute("data-confirm-reject"); if(cr){ confirmReject(cr); return; }
@@ -899,6 +976,15 @@
   function openChatFor(listingId){
     var l=byId(listingId); if(!l) return;
     if(l.owner==="me"){ toast(t("selfChat")); return; }
+    if(LIVE){
+      API.openConversation(listingId).then(function(r){
+        var cid=String(r.conversation_id);
+        if(!convById(cid)) state.convos.unshift({id:cid,listing:listingId,
+          withKey:l.owner, other:sellerOf(l), unread:0, msgs:[]});
+        save(); go("chat",{id:cid});
+      }).catch(apiFail);
+      return;
+    }
     var found=null; for(var i=0;i<state.convos.length;i++){ if(state.convos[i].listing===listingId){ found=state.convos[i]; break; } }
     if(!found){ found={id:"c"+(state.nextId++),listing:listingId,withKey:l.owner,unread:0,msgs:[]}; state.convos.unshift(found); save(); }
     go("chat",{id:found.id});
@@ -917,6 +1003,7 @@
     save(); go("post");
   }
   function approve(id){
+    if(LIVE){ API.approve(id).then(function(){ toast(t("approvedToast")); go("admin"); }).catch(apiFail); return; }
     var l=byId(id); if(!l||l.status!=="pending") return;
     l.status="active"; l.views=l.views||0; save();
     if(l.owner==="me") state.notifs.unshift({id:"n"+(state.nextId++),type:"approved",listing:id,unread:true,time:{en:"just now",ta:"இப்போது"},extra:{en:l.title+" is now live.",ta:l.title+" இப்போது நேரலையில்."}});
@@ -927,6 +1014,7 @@
     var rr=document.getElementById("rr-"+id); var ta=rr?rr.querySelector("textarea"):null;
     var reason=ta?ta.value.trim():"";
     if(!reason){ toast(t("needReason")); ta&&ta.focus(); return; }
+    if(LIVE){ API.reject(id,reason).then(function(){ toast(t("rejectedToast")); go("admin"); }).catch(apiFail); return; }
     l.status="rejected"; l.rej=reason; save();
     if(l.owner==="me") state.notifs.unshift({id:"n"+(state.nextId++),type:"rejected",listing:id,unread:true,time:{en:"just now",ta:"இப்போது"},extra:{en:reason,ta:reason}});
     toast(t("rejectedToast")); go("admin");
@@ -990,9 +1078,142 @@
       try{ localStorage.setItem("ns_install_snooze", String(Date.now()+30*24*60*60*1000)); }catch(err){} }
   });
 
+  /* ============================================================
+     LIVE MODE — real server accounts.
+     Server objects are mapped into the SAME shapes the screens
+     already render, so the UI code below needs no changes.
+     ============================================================ */
+  var API = window.NS_API;
+  var LIVE = false;
+
+  function mapUser(u){
+    if(!u) return {id:0,name:"User",initial:"U",verified:false,online:false,seen:0,
+                   call:false,whatsapp:false,number:"",since:"",locality:""};
+    var ago = Math.max(0, Math.round((Date.now()/1000 - (u.last_seen||0))/60));
+    return {id:u.id, name:u.name||("User "+u.id), initial:((u.name||"U").trim()[0]||"U").toUpperCase(),
+            verified:!!u.verified, online:ago<5, seen:ago,
+            call:!!u.allow_call, whatsapp:!!u.allow_whatsapp, number:u.phone||"",
+            since:u.member_since?new Date(u.member_since*1000).toLocaleDateString(
+              lang==="ta"?"ta-IN":"en-IN",{month:"short",year:"numeric"}):"",
+            locality:u.locality||""};
+  }
+  function mapListing(s){
+    var owner = mapUser(s.owner);
+    var mine  = state.user.id && s.owner && s.owner.id===state.user.id;
+    return L({
+      id:String(s.id), owner: mine?"me":("u"+(s.owner&&s.owner.id)), ownerObj: mine?meSeller():owner,
+      type:s.type, category:s.category, title:s.title, price:s.price, unit:s.unit, qty:s.qty,
+      desc:s.desc||"", specs:s.specs||{}, status:s.status, rej:s.reject_reason||"", views:s.views||0,
+      photos:(s.photos||[]).map(function(p){return API.mediaUrl(p);}),
+      loc:{mode:(s.loc&&s.loc.lat)?"gps":"manual", district:(s.loc&&s.loc.district)||"",
+           village:(s.loc&&s.loc.village)||"",
+           locality:(s.loc&&(s.loc.locality|| [s.loc.village,s.loc.district].filter(Boolean).join(", ")))||"",
+           km:0}
+    });
+  }
+  function busy(on){ var el=document.getElementById("toast");
+    if(on){ el.textContent="…"; el.classList.add("show"); } else el.classList.remove("show"); }
+
+  function apiFail(e){
+    if(e && (e.status===401||e.code==="unauthorized")){
+      API.setToken(null); state.onboarded=false; save(); toast(t("logout")); go("welcome"); return;
+    }
+    toast((e && e.message) ? e.message : "Network error");
+  }
+
+  // Pull the data a given screen needs, then re-render.
+  function syncFor(route){
+    if(!LIVE) return Promise.resolve();
+    var jobs=[];
+    if(["home","browse","nearby","listing"].indexOf(route)>=0){
+      jobs.push(API.listings({limit:60}).then(function(r){
+        var mine = state.listings.filter(function(l){return l.owner==="me"&&l.status!=="active";});
+        state.listings = (r.listings||[]).map(mapListing).concat(mine);
+      }));
+    }
+    if(["mylistings","post","preview"].indexOf(route)>=0){
+      jobs.push(API.myListings().then(function(r){
+        var others = state.listings.filter(function(l){return l.owner!=="me";});
+        state.listings = others.concat((r.listings||[]).map(mapListing));
+      }));
+    }
+    if(route==="admin"){
+      jobs.push(API.pending().then(function(r){
+        var others = state.listings.filter(function(l){return l.status!=="pending";});
+        state.listings = others.concat((r.listings||[]).map(mapListing));
+      }));
+    }
+    if(route==="notifications"||route==="home"){
+      jobs.push(API.notifications().then(function(r){
+        state.notifs = (r.notifications||[]).map(function(n){
+          var p=n.payload||{};
+          var txt = n.type==="rejected" ? (p.reason||"") :
+                    n.type==="message"  ? (p.preview||"") : (p.title||"");
+          return {id:String(n.id), type:n.type, listing:n.listing_id?String(n.listing_id):null,
+                  conv:n.conv_id?String(n.conv_id):null, unread:n.unread,
+                  time:{en:timeAgo(n.at,"en"), ta:timeAgo(n.at,"ta")},
+                  extra:{en:txt, ta:txt}};
+        });
+      }));
+    }
+    if(route==="messages"){
+      jobs.push(API.conversations().then(function(r){
+        state.convos = (r.conversations||[]).map(function(c){
+          var o=mapUser(c.other);
+          return {id:String(c.id), listing:String(c.listing_id), withKey:"u"+o.id, other:o,
+                  unread:c.unread||0, sub:c.listing?(c.listing.title+" · "+INR(c.listing.price)):"",
+                  msgs:c.last?[{who:c.last.mine?"me":"them",en:c.last.body,ta:c.last.body,
+                                t:timeAgo(c.last.at,lang)}]:[]};
+        });
+      }));
+    }
+    return Promise.all(jobs).catch(apiFail);
+  }
+  function timeAgo(ts,lg){
+    var s=Math.max(0, Math.round(Date.now()/1000-(ts||0)));
+    var ta=lg==="ta";
+    if(s<60) return ta?"இப்போது":"just now";
+    if(s<3600) return Math.round(s/60)+(ta?" நிமிடம் முன்":" min ago");
+    if(s<86400) return Math.round(s/3600)+(ta?" மணி முன்":" hr ago");
+    return Math.round(s/86400)+(ta?" நாள் முன்":" d ago");
+  }
+
+  // Wrap the router so live screens fetch before painting.
+  var _go = go;
+  go = function(r,p){
+    if(!LIVE) return _go(r,p);
+    _go(r,p);                                   // paint immediately (cached data)
+    syncFor(r).then(function(){ if(route===r) _go(r,p); });
+  };
+
+  function startLive(user){
+    LIVE = true;
+    state.user.id = user.id;
+    state.user.name = user.name||"";
+    state.user.phone = user.phone||"";
+    state.user.locality = user.locality||state.user.locality;
+    state.user.call = !!user.allow_call;
+    state.user.whatsapp = !!user.allow_whatsapp;
+    state.role = user.role||"user";
+    state.onboarded = true;
+    state.listings = []; state.convos = []; state.notifs = [];
+    save();
+  }
+
   /* ---------- boot ---------- */
   load();
-  go(state.onboarded ? "home" : "welcome");
+  _go(state.onboarded ? "home" : "welcome");
+
+  if(API && API.enabled){
+    API.health().then(function(h){
+      if(!h || !h.ok) return;
+      if(API.token){
+        return API.me().then(function(r){ startLive(r.user); go("home"); })
+                      .catch(function(){ API.setToken(null); state.onboarded=false; save(); _go("welcome"); });
+      }
+      state.onboarded=false; save(); _go("welcome");
+    }).catch(function(){ /* backend down -> stay in on-device demo */ });
+  }
 
   if("serviceWorker" in navigator){
     window.addEventListener("load",function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });

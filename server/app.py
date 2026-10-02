@@ -25,6 +25,14 @@ MAX_UPLOAD = 4 * 1024 * 1024
 PHONE_RE = re.compile(r"^[6-9]\d{9}$")        # Indian mobile
 ADMIN_PHONES = [p.strip() for p in os.environ.get("NS_ADMIN_PHONES", "").split(",") if p.strip()]
 
+# AUTH MODE
+#   open (DEFAULT) -> no OTP at all. Enter a number, get an account+session.
+#                     This is a TRIAL so the client can test accounts, listings,
+#                     approvals and chat without waiting for codes. It proves
+#                     nothing about owning the number - production must use otp.
+#   otp            -> the full code flow (kept intact, see request_otp/verify).
+AUTH_MODE = os.environ.get("NS_AUTH_MODE", "open").strip().lower()
+
 # Browsers calling this from GitHub Pages need CORS.
 ALLOWED_ORIGINS = [o.strip() for o in os.environ.get(
     "NS_ALLOWED_ORIGINS",
@@ -194,6 +202,51 @@ def verify_otp():
     user = D.row_to_dict(con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone())
     con.close()
     return jsonify({"token": tok, "user": public_user(user, self_view=True)})
+
+
+def issue_session(con, phone, name=None):
+    """Create-or-fetch the user and hand back a session token."""
+    now = D.now()
+    u = con.execute("SELECT * FROM users WHERE phone=?", (phone,)).fetchone()
+    if not u:
+        role = "admin" if phone in ADMIN_PHONES else "user"
+        cur = con.execute(
+            "INSERT INTO users(phone,phone_verified,name,role,created_at,last_seen,locality) "
+            "VALUES(?,?,?,?,?,?,?)",
+            (phone, 0 if AUTH_MODE == "open" else 1, (name or "")[:80], role, now, now, ""))
+        uid = cur.lastrowid
+    else:
+        uid = u["id"]
+        if name and not (u["name"] or "").strip():
+            con.execute("UPDATE users SET name=? WHERE id=?", ((name or "")[:80], uid))
+        con.execute("UPDATE users SET last_seen=? WHERE id=?", (now, uid))
+    tok = D.new_token()
+    con.execute("INSERT INTO sessions(token,user_id,created_at,expires_at) VALUES(?,?,?,?)",
+                (tok, uid, now, now + SESSION_TTL))
+    con.commit()
+    user = D.row_to_dict(con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone())
+    return tok, user
+
+
+@app.post("/api/auth/signin")
+def signin():
+    """One-step sign in - NO OTP. Enabled when NS_AUTH_MODE=open (the default).
+
+    Deliberately does NOT mark the number verified: nothing here proves the
+    tester owns it. The UI labels the account accordingly.
+    """
+    if AUTH_MODE != "open":
+        return err("otp_required", "This server requires OTP sign in", 400)
+    d = request.get_json(silent=True) or {}
+    phone = re.sub(r"\D", "", str(d.get("phone", "")))
+    name = str(d.get("name", "")).strip()
+    if not PHONE_RE.match(phone):
+        return err("bad_phone", "Enter a valid 10-digit Indian mobile number")
+    con = D.connect()
+    tok, user = issue_session(con, phone, name)
+    con.close()
+    return jsonify({"token": tok, "user": public_user(user, self_view=True),
+                    "verified": False, "auth_mode": "open"})
 
 
 @app.post("/api/auth/logout")
@@ -708,7 +761,11 @@ def health():
     counts = {t: con.execute("SELECT COUNT(*) n FROM " + t).fetchone()["n"]
               for t in ("users", "listings", "messages", "notifications")}
     con.close()
-    return jsonify({"ok": True, "trial": True, "counts": counts, "sms": SMS.status()})
+    return jsonify({"ok": True, "trial": True, "counts": counts,
+                    "auth_mode": AUTH_MODE,
+                    "otp_required": AUTH_MODE != "open",
+                    # With auth_mode=open nothing can send an SMS at all.
+                    "sms": {"disabled": True} if AUTH_MODE == "open" else SMS.status()})
 
 
 if __name__ == "__main__":

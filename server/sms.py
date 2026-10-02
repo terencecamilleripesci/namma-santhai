@@ -24,6 +24,13 @@ exposes a private line:
 import os, json, time
 
 MODE = os.environ.get("NS_OTP_MODE", "demo").strip().lower()
+# Third mode: "gsmtest" -> our OWN queue in server/data/, drained by hand via
+# gsm_test.py. Allowlist-only, dry-run by default. Never touches the business
+# queue or the business agent. See gsm_test.py for the three guards.
+try:
+    import gsm_test as GSMTEST
+except Exception:                                    # noqa: BLE001
+    GSMTEST = None
 
 # Path of the existing queue seam. Only used when MODE == "gsm".
 SMS_QUEUE = os.environ.get("NS_SMS_QUEUE", "").strip()
@@ -51,6 +58,19 @@ def deliver(phone_e164, code):
     if MODE == "demo":
         # Code goes back to the caller and is shown on screen, clearly labelled.
         return "shown_on_screen", "demo mode - no SMS sent"
+
+    if MODE == "gsmtest":
+        # SEPARATE test lane: our own queue file, drained by hand.
+        if GSMTEST is None:
+            raise SmsRefused("gsm_test module unavailable - refusing to send")
+        if not GSMTEST.allowed(phone_e164):
+            # Blocked here too, not just at drain time, so the API never even
+            # queues a message to a number that is not an approved test handset.
+            raise SmsRefused("number is not on the GSM test allowlist")
+        GSMTEST.enqueue(phone_e164,
+                        "Namma Santhai: your code is %s. Do not share it." % code)
+        return "queued", ("queued to the trial's own SMS lane - run "
+                          "`python3 server/gsm_test.py drain` to send")
 
     if MODE != "gsm":
         return "failed", "unknown NS_OTP_MODE=%s" % MODE
@@ -92,10 +112,16 @@ def deliver(phone_e164, code):
 
 
 def status():
-    return {
+    out = {
         "mode": MODE,
         "gsm_enabled": MODE == "gsm",
         "gsm_ready": bool(MODE == "gsm" and SMS_QUEUE and BUSINESS and FROM and FROM == BUSINESS),
         "queue_configured": bool(SMS_QUEUE),
         "from_line": _mask(FROM) if FROM else "(unset)",
+        "business_queue_touched": False,      # this trial never opens it
     }
+    if MODE == "gsmtest" and GSMTEST is not None:
+        s = GSMTEST.status()
+        out["gsm_test"] = {"live": s["live"], "allowlist_size": s["allowlist_size"],
+                           "cap_per_run": s["cap_per_run"], "counts": s["counts"]}
+    return out
