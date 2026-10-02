@@ -932,6 +932,33 @@
     toast(t("rejectedToast")); go("admin");
   }
 
+  /* ---------- PWA install ---------- */
+  var IT={
+    en:{title:"Install Namma Santhai",sub:"Add it to your home screen",btn:"Install",
+        ios:"To install: tap Share ⎙ then “Add to Home Screen”.",done:"App installed!"},
+    ta:{title:"நம்ம சந்தை நிறுவு",sub:"முகப்புத் திரையில் சேர்க்கவும்",btn:"நிறுவு",
+        ios:"நிறுவ: Share ⎙ தொட்டு “Add to Home Screen” தேர்வு செய்யவும்.",done:"ஆப் நிறுவப்பட்டது!"}};
+  function it(k){ return (IT[lang]&&IT[lang][k])||IT.en[k]; }
+  var deferredPrompt=null;
+  function isStandalone(){ return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone===true; }
+  function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream; }
+  function showInstallBar(mode){
+    if(isStandalone() || localStorage.getItem("ns_install_dismissed")==="1") return;
+    var bar=document.getElementById("install-bar"); if(!bar) return;
+    document.getElementById("ib-title").textContent=it("title");
+    document.getElementById("ib-sub").textContent= mode==="ios"?it("ios"):it("sub");
+    var btn=document.getElementById("install-btn"); btn.textContent=it("btn");
+    btn.style.display = mode==="ios" ? "none" : "";
+    bar.hidden=false;
+  }
+  window.addEventListener("beforeinstallprompt",function(e){ e.preventDefault(); deferredPrompt=e; showInstallBar("prompt"); });
+  window.addEventListener("appinstalled",function(){ var b=document.getElementById("install-bar"); if(b)b.hidden=true; toast(it("done")); });
+  document.addEventListener("click",function(e){
+    if(e.target&&e.target.id==="install-btn"&&deferredPrompt){ deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(){ deferredPrompt=null; var b=document.getElementById("install-bar"); if(b)b.hidden=true; }); }
+    if(e.target&&e.target.id==="install-x"){ var b=document.getElementById("install-bar"); if(b)b.hidden=true; localStorage.setItem("ns_install_dismissed","1"); }
+  });
+
   /* ---------- boot ---------- */
   load();
   go(state.onboarded ? "home" : "welcome");
@@ -939,4 +966,6 @@
   if("serviceWorker" in navigator){
     window.addEventListener("load",function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });
   }
+  // iOS Safari has no beforeinstallprompt — show manual instructions after a moment
+  if(isIOS() && !isStandalone()){ setTimeout(function(){ showInstallBar("ios"); },1800); }
 })();
