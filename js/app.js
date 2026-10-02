@@ -940,10 +940,30 @@
         ios:"நிறுவ: Share ⎙ தொட்டு “Add to Home Screen” தேர்வு செய்யவும்.",done:"ஆப் நிறுவப்பட்டது!"}};
   function it(k){ return (IT[lang]&&IT[lang][k])||IT.en[k]; }
   var deferredPrompt=null;
-  function isStandalone(){ return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone===true; }
-  function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream; }
+  function isStandalone(){
+    try{
+      return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
+          || (window.matchMedia && window.matchMedia("(display-mode: fullscreen)").matches)
+          || (window.matchMedia && window.matchMedia("(display-mode: minimal-ui)").matches)
+          || window.navigator.standalone===true
+          || document.referrer.indexOf("android-app://")===0;
+    }catch(e){ return false; }
+  }
+  function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent)
+    || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1); } // iPadOS 13+
+  function hideInstallBar(){ var b=document.getElementById("install-bar"); if(b) b.hidden=true; }
+  // Once installed we remember it, so the prompt never returns on this device.
+  function markInstalled(){ try{ localStorage.setItem("ns_installed","1"); }catch(e){} hideInstallBar(); }
+  function suppressed(){
+    try{
+      if(localStorage.getItem("ns_installed")==="1") return true;
+      var until=parseInt(localStorage.getItem("ns_install_snooze")||"0",10);
+      return until>0 && Date.now()<until;
+    }catch(e){ return false; }
+  }
   function showInstallBar(mode){
-    if(isStandalone() || localStorage.getItem("ns_install_dismissed")==="1") return;
+    if(isStandalone()){ markInstalled(); return; }   // running as an app → never ask
+    if(suppressed()) return;
     var bar=document.getElementById("install-bar"); if(!bar) return;
     document.getElementById("ib-title").textContent=it("title");
     document.getElementById("ib-sub").textContent= mode==="ios"?it("ios"):it("sub");
@@ -951,12 +971,23 @@
     btn.style.display = mode==="ios" ? "none" : "";
     bar.hidden=false;
   }
+  // If it was launched standalone at any point, record it immediately.
+  if(isStandalone()) markInstalled();
+  // Chrome/Android also reports related installed apps where supported.
+  if(navigator.getInstalledRelatedApps){
+    navigator.getInstalledRelatedApps().then(function(apps){ if(apps&&apps.length) markInstalled(); }).catch(function(){});
+  }
   window.addEventListener("beforeinstallprompt",function(e){ e.preventDefault(); deferredPrompt=e; showInstallBar("prompt"); });
-  window.addEventListener("appinstalled",function(){ var b=document.getElementById("install-bar"); if(b)b.hidden=true; toast(it("done")); });
+  window.addEventListener("appinstalled",function(){ markInstalled(); toast(it("done")); });
+  // display-mode can flip without a reload (e.g. opened from the new icon)
+  try{ window.matchMedia("(display-mode: standalone)").addEventListener("change",function(ev){ if(ev.matches) markInstalled(); }); }catch(e){}
   document.addEventListener("click",function(e){
     if(e.target&&e.target.id==="install-btn"&&deferredPrompt){ deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(function(){ deferredPrompt=null; var b=document.getElementById("install-bar"); if(b)b.hidden=true; }); }
-    if(e.target&&e.target.id==="install-x"){ var b=document.getElementById("install-bar"); if(b)b.hidden=true; localStorage.setItem("ns_install_dismissed","1"); }
+      deferredPrompt.userChoice.then(function(c){ deferredPrompt=null; hideInstallBar();
+        if(c&&c.outcome==="accepted") markInstalled(); }); }
+    if(e.target&&e.target.id==="install-x"){ hideInstallBar();
+      // snooze 30 days rather than nagging on every visit
+      try{ localStorage.setItem("ns_install_snooze", String(Date.now()+30*24*60*60*1000)); }catch(err){} }
   });
 
   /* ---------- boot ---------- */

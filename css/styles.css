@@ -532,3 +532,24 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 .install-bar .ib-text #ib-sub{color:var(--ink-soft);font-size:11.5px;}
 .install-bar .ib-btn{width:auto;padding:9px 16px;font-size:13px;border-radius:10px;}
 .install-bar .ib-x{background:none;border:0;color:var(--ink-soft);font-size:15px;cursor:pointer;padding:4px;}
+
+/* ---------- FIX: screens are column flex containers, so non-scrolling
+   children must NOT shrink (chips/search/safety were collapsing) ---------- */
+.screen > .searchbar,
+.screen > .chips,
+.screen > .safety-strip,
+.screen > .section-head,
+.screen > .radius-row,
+.screen > .filterbar,
+.screen > .tabbar-sub,
+.screen > .perm,
+.screen > .grid2,
+.screen > .list,
+.screen > .mine,
+.screen > .notifs,
+.screen > .threads,
+.screen > .seller-stats,
+.screen > .empty{flex:0 0 auto;}
+/* chips keep their full height and scroll sideways cleanly */
+.chips{min-height:52px;align-items:center;-webkit-overflow-scrolling:touch;}
+.chip{white-space:nowrap;}
