@@ -32,19 +32,31 @@ written anywhere else on the Pi.
 | Data | `server/data/namma.db` + `server/data/uploads/` |
 | Log | `server/server.log` |
 
-### Making an admin
-Admin is **server-enforced by role**, not a hidden button. Numbers listed in
-`NS_ADMIN_PHONES` get `role=admin` when they first sign up:
+### Admin account
+**Admin number: `9843575561`** - signing in with it gives the approval queue.
+It is the built-in default in `START.sh`, so no extra flags are needed.
+
+Admin is **server-enforced by role**, not a hidden button: a normal account
+gets `403` on the queue and on approve/reject, by URL or by API. Verified.
+
+To use different / extra admins:
 
 ```bash
-NS_ADMIN_PHONES="9999999999,9888888888" bash server/START.sh
+NS_ADMIN_PHONES="9843575561,9888888888" bash server/START.sh
 ```
+
+> The role is assigned when that number **first signs in**. If you change the
+> list after an account already exists, wipe (`bash STOP.sh --wipe`) first.
 
 ---
 
 ## OTP: demo now, GSM only on your word
 
 `NS_OTP_MODE` controls delivery:
+
+> **Current setting: OTP is OFF.** `NS_AUTH_MODE=open` (the default) means sign
+> in is a phone number only - no code, no password, and **nothing can send an
+> SMS at all**. The table below applies only with `NS_AUTH_MODE=otp`.
 
 | mode | behaviour |
 |---|---|

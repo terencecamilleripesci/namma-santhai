@@ -14,7 +14,9 @@ export NS_HOST="${NS_HOST:-127.0.0.1}"
 export NS_OTP_MODE="${NS_OTP_MODE:-demo}"
 
 # Admin accounts: comma separated 10-digit numbers that get role=admin on signup.
-export NS_ADMIN_PHONES="${NS_ADMIN_PHONES:-}"
+# Signing in with one of these grants the approval queue. Role is enforced
+# server-side, so a normal user cannot reach it by URL or API.
+export NS_ADMIN_PHONES="${NS_ADMIN_PHONES:-9843575561}"
 
 if [ -f server.pid ] && kill -0 "$(cat server.pid)" 2>/dev/null; then
   echo "already running (pid $(cat server.pid)) on port $PORT"
