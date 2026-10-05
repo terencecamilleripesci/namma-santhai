@@ -101,6 +101,11 @@ window.NS_API = (function () {
     messages: function (cid) { return req("GET", "/api/conversations/" + cid + "/messages"); },
     sendMessage: function (cid, body) { return req("POST", "/api/conversations/" + cid + "/messages", { body: body }); },
 
+    pushKey: function () { return req("GET", "/api/push/key"); },
+    pushSubscribe: function (sub) { return req("POST", "/api/push/subscribe", sub); },
+    pushUnsubscribe: function (ep) { return req("POST", "/api/push/unsubscribe", { endpoint: ep }); },
+    pushTest: function () { return req("POST", "/api/push/test"); },
+
     notifications: function () { return req("GET", "/api/notifications"); },
     markRead: function () { return req("POST", "/api/notifications/read"); },
 

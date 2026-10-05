@@ -57,7 +57,8 @@
       notifBlocked:"Blocked in your browser settings.",
       notifTest:"Test", notifTestTitle:"Namma Santhai",
       notifTestBody:"Notifications are working on this device.",
-      notifTestSent:"Test notification sent",
+      notifTestSent:"Test push sent - close the app and it still arrives",
+      notifTestNoDevice:"This device is not registered for push yet",
       adminByNumber:"Granted by your phone number, not a switch.",
       photoFailed:"Could not read that photo. Try another.",
       noOtpNote:"Trial: signing in with a number only. No code is sent and the number is not verified.",
@@ -149,6 +150,7 @@
       notifTest:"சோதனை", notifTestTitle:"நம்ம சந்தை",
       notifTestBody:"இந்த சாதனத்தில் அறிவிப்புகள் வேலை செய்கின்றன.",
       notifTestSent:"சோதனை அறிவிப்பு அனுப்பப்பட்டது",
+      notifTestNoDevice:"இந்த சாதனம் இன்னும் பதிவு செய்யப்படவில்லை",
       adminByNumber:"உங்கள் தொலைபேசி எண் மூலம் வழங்கப்படுகிறது.",
       photoFailed:"படத்தைப் படிக்க முடியவில்லை. வேறு ஒன்றை முயற்சிக்கவும்.",
       enterMobile:"உங்கள் மொபைல் எண்ணை உள்ளிடவும்", otpSub:"உங்கள் எண்ணைச் சரிபார்க்க 6-இலக்க குறியீடு அனுப்புவோம்.",
@@ -791,7 +793,7 @@
             API.setToken(r.token); startLive(r.user);
             toast(t("loginToast"));
             go(r.user.name ? "home" : "profile");
-            setTimeout(function(){ maybeAskNotifications(); startNotifPolling(); }, 900);
+            setTimeout(function(){ maybeAskNotifications(); startNotifPolling(); subscribePush(); }, 900);
           }).catch(function(e){ btn.disabled=false; btn.textContent=t("continue"); apiFail(e); });
           return;
         }
@@ -1089,6 +1091,36 @@
      undone from inside the page - the user has to dig into site settings.
      ============================================================ */
   function notifSupported(){ return typeof Notification !== "undefined"; }
+
+  /* ---- Web Push: delivery with the app CLOSED ----
+     The poller above only runs in an open tab. Registering a push
+     subscription hands delivery to the browser's own push service, which can
+     wake the service worker with the app shut. */
+  function b64ToU8(base64){
+    var pad="=".repeat((4 - base64.length % 4) % 4);
+    var raw=atob((base64+pad).replace(/-/g,"+").replace(/_/g,"/"));
+    var out=new Uint8Array(raw.length);
+    for(var i=0;i<raw.length;i++) out[i]=raw.charCodeAt(i);
+    return out;
+  }
+  function subscribePush(){
+    if(!LIVE || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if(notifState()!=="granted") return;
+    return navigator.serviceWorker.ready.then(function(reg){
+      return API.pushKey().then(function(k){
+        if(!k || !k.enabled || !k.key) return;
+        return reg.pushManager.getSubscription().then(function(existing){
+          if(existing) return existing;
+          return reg.pushManager.subscribe({
+            userVisibleOnly:true,
+            applicationServerKey:b64ToU8(k.key)
+          });
+        });
+      });
+    }).then(function(sub){
+      if(sub) return API.pushSubscribe(sub.toJSON());
+    }).catch(function(){ /* push unavailable on this device - in-app still works */ });
+  }
   function notifState(){ return notifSupported() ? Notification.permission : "unsupported"; }
 
   function maybeAskNotifications(){
@@ -1116,14 +1148,23 @@
       // Must be called from this click - browsers reject a cold request.
       Notification.requestPermission().then(function(p){
         toast(p==="granted" ? t("notifOn") : t("notifOff"));
-        if(p==="granted") startNotifPolling();
+        if(p==="granted"){ startNotifPolling(); subscribePush(); }
       }).catch(function(){});
     }
     if(e.target.id==="notif-test"){
-      if(notifState()==="granted"){
+      if(notifState()!=="granted"){ toast(t("notifOff")); return; }
+      // Ask the SERVER to push us - that is what proves closed-app delivery.
+      if(LIVE){
+        subscribePush();
+        API.pushTest().then(function(r){
+          toast(r && r.sent_to_devices ? t("notifTestSent") : t("notifTestNoDevice"));
+        }).catch(function(){
+          try{ new Notification(t("notifTestTitle"),{body:t("notifTestBody"),
+               icon:"icons/icon-192.png",tag:"ns-test"}); }catch(err){}
+        });
+      } else {
         try{ new Notification(t("notifTestTitle"),{body:t("notifTestBody"),
-             icon:"icons/icon-192.png",tag:"ns-test"}); toast(t("notifTestSent")); }
-        catch(err){ toast(t("notifOff")); }
+             icon:"icons/icon-192.png",tag:"ns-test"}); toast(t("notifTestSent")); }catch(err){}
       }
       return;
     }
@@ -1400,7 +1441,7 @@
       if(!h || !h.ok) return;
       if(API.token){
         return API.me().then(function(r){ startLive(r.user); go("home");
-                 setTimeout(function(){ maybeAskNotifications(); startNotifPolling(); },900); })
+                 setTimeout(function(){ maybeAskNotifications(); startNotifPolling(); subscribePush(); },900); })
                       .catch(function(){ API.setToken(null); state.onboarded=false; save(); _go("welcome"); });
       }
       state.onboarded=false; save(); _go("welcome");

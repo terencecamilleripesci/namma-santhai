@@ -14,6 +14,7 @@ from flask import Flask, request, jsonify, g, send_from_directory, make_response
 
 import db as D
 import sms as SMS
+import push as PUSH
 
 app = Flask(__name__, static_folder=None)
 
@@ -591,10 +592,40 @@ def notify_new_listing(con, lid, owner_id, category, title):
                    payload={"title": title, "category": category})
 
 
+def push_to_user(user_id, title, body, url="./", tag=None):
+    """Fan a push out to every device this user has registered."""
+    if not PUSH.enabled():
+        return 0
+    con = D.connect()
+    rows = con.execute("SELECT endpoint, sub FROM push_subs WHERE user_id=?", (user_id,)).fetchall()
+    sent = 0
+    for r in rows:
+        try:
+            sub = json.loads(r["sub"])
+        except Exception:
+            continue
+        ok, detail = PUSH.send(sub, title, body, url, tag)
+        if ok:
+            sent += 1
+        elif detail == "gone":
+            # Dead subscription: drop it rather than retrying it forever.
+            con.execute("DELETE FROM push_subs WHERE endpoint=?", (r["endpoint"],))
+    con.commit(); con.close()
+    return sent
+
+
 def notify(con, user_id, typ, listing_id=None, conv_id=None, payload=None):
     con.execute("INSERT INTO notifications(user_id,type,listing_id,conv_id,payload,created_at) "
                 "VALUES(?,?,?,?,?,?)",
                 (user_id, typ, listing_id, conv_id, json.dumps(payload or {}), D.now()))
+    p = payload or {}
+    title = {"message": "New message", "approved": "Ad approved",
+             "rejected": "Ad rejected"}.get(typ, "New near you")
+    body = p.get("preview") or p.get("title") or p.get("reason") or ""
+    try:
+        push_to_user(user_id, title, body, "./", tag=typ)
+    except Exception:                                # never let push break the write
+        pass
 
 
 @app.post("/api/admin/listings/<int:lid>/approve")
@@ -792,6 +823,45 @@ def mark_read():
 
 
 # ------------------------------------------------------------------ ops
+@app.get("/api/push/key")
+def push_key():
+    return jsonify({"key": PUSH.public_key(), "enabled": PUSH.enabled()})
+
+
+@app.post("/api/push/subscribe")
+@require_auth
+def push_subscribe():
+    sub = request.get_json(silent=True) or {}
+    ep = sub.get("endpoint")
+    if not ep:
+        return err("bad_subscription", "Missing endpoint")
+    con = D.connect()
+    con.execute(
+        "INSERT INTO push_subs(user_id,endpoint,sub,created_at) VALUES(?,?,?,?) "
+        "ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id, sub=excluded.sub",
+        (g.user["id"], ep, json.dumps(sub), D.now()))
+    con.commit(); con.close()
+    return jsonify({"ok": True})
+
+
+@app.post("/api/push/unsubscribe")
+@require_auth
+def push_unsubscribe():
+    ep = (request.get_json(silent=True) or {}).get("endpoint", "")
+    con = D.connect()
+    con.execute("DELETE FROM push_subs WHERE endpoint=? AND user_id=?", (ep, g.user["id"]))
+    con.commit(); con.close()
+    return jsonify({"ok": True})
+
+
+@app.post("/api/push/test")
+@require_auth
+def push_test():
+    n = push_to_user(g.user["id"], "Namma Santhai", "Push is working on this device.", "./")
+    return jsonify({"ok": n > 0, "sent_to_devices": n,
+                    "note": "accepted by the push service; not a delivery receipt"})
+
+
 @app.get("/api/health")
 def health():
     con = D.connect()

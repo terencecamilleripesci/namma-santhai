@@ -130,6 +130,14 @@ CREATE TABLE IF NOT EXISTS approval_audit (
   created_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS push_subs (
+  endpoint TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  sub TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_push_user ON push_subs(user_id);
+
 -- outbound OTP log: proves what we ATTEMPTED and what actually happened.
 CREATE TABLE IF NOT EXISTS sms_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

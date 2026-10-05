@@ -1,4 +1,5 @@
 data/
+backups/
 *.log
 server.pid
 __pycache__/

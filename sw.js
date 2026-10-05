@@ -1,6 +1,6 @@
 /* Namma Santhai service worker — NETWORK-FIRST, cache fallback.
    Bump CACHE on every deploy or the phone serves stale files. */
-const CACHE = 'namma-santhai-v12';
+const CACHE = 'namma-santhai-v13';
 const ASSETS = [
   './', './index.html', './css/styles.css', './js/app.js', './js/api.js',
   './manifest.json', './assets/temple.svg', './assets/share-card.jpg',
@@ -29,5 +29,38 @@ self.addEventListener('fetch', (e) => {
         return res;
       })
       .catch(() => caches.match(e.request).then(r => r || caches.match('./index.html')))
+  );
+});
+
+/* ---------------- Web Push: fires with the app CLOSED ----------------
+   The browser's push service wakes this worker even when no tab is open,
+   which is the whole point - the in-app poller cannot do that. */
+self.addEventListener('push', (e) => {
+  let d = { title: 'Namma Santhai', body: '', url: './', tag: 'ns' };
+  try { if (e.data) d = Object.assign(d, e.data.json()); }
+  catch (_) { if (e.data) d.body = e.data.text(); }
+  e.waitUntil(
+    self.registration.showNotification(d.title, {
+      body: d.body,
+      icon: 'icons/icon-192.png',
+      badge: 'icons/icon-192.png',
+      tag: d.tag,
+      renotify: true,
+      data: { url: d.url || './' }
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const target = (e.notification.data && e.notification.data.url) || './';
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      // Focus an open window rather than stacking up new ones.
+      for (const c of list) {
+        if ('focus' in c) { c.focus(); if ('navigate' in c) c.navigate(target); return; }
+      }
+      if (clients.openWindow) return clients.openWindow(target);
+    })
   );
 });
