@@ -43,6 +43,7 @@
       letsBegin:"Let's Begin", trialNote:"Private trial — simulated login, no SMS is sent.",
       enterMobile:"Enter your mobile number", otpSub:"We'll send a 6-digit code to verify your number.",
       noOtpSub:"Enter your mobile number to sign in. No password needed.",
+      emptyFeed:"No listings yet. Be the first to post one.",
       noOtpNote:"Trial: signing in with a number only. No code is sent and the number is not verified.",
       mobileLabel:"Mobile number", sendOtp:"Send OTP", or:"OR", google:"Continue with Google",
       privacyNote:"Your number is private. Buyers never see it unless you turn on contact.",
@@ -120,6 +121,7 @@
       letsBegin:"தொடங்கலாம்", trialNote:"தனிப்பட்ட சோதனை — மாதிரி உள்நுழைவு, SMS அனுப்பப்படாது.",
       noOtpSub:"உள்நுழைதல்: மொபைல் எண் மட்டும் போதும்.",
       noOtpNote:"சோதனை: எண் மூலம் மட்டும் உள்நுழைவு.",
+      emptyFeed:"இன்னும் விளம்பரங்கள் இல்லை. முதலில் நீங்கள் இடுங்கள்.",
       enterMobile:"உங்கள் மொபைல் எண்ணை உள்ளிடவும்", otpSub:"உங்கள் எண்ணைச் சரிபார்க்க 6-இலக்க குறியீடு அனுப்புவோம்.",
       mobileLabel:"மொபைல் எண்", sendOtp:"OTP அனுப்பு", or:"அல்லது", google:"Google மூலம் தொடரவும்",
       privacyNote:"உங்கள் எண் தனிப்பட்டது. தொடர்பை இயக்கும் வரை வாங்குபவர்கள் பார்க்க முடியாது.",
@@ -220,7 +222,7 @@
       user:{phone:"",verified:false,name:"",photo:null,district:"Madurai",village:"Alanganallur",
         locality:"Madurai, Tamil Nadu",coords:null,call:false,whatsapp:false,
         alerts:{cats:["goat"],radius:25,enabled:true}},
-      listings:seedListings(), convos:seedConvos(), notifs:seedNotifs(),
+      listings:[], convos:[], notifs:[],
       draft:null, pendingPhone:"", otp:null, radius:25, locAllowed:false
     };
   }
@@ -413,27 +415,39 @@
       +'<button class="fav" aria-label="Save" data-noop>🤍</button></div>'
       +'<div class="body"><div class="title">'+esc(l.title)+'</div>'
       +'<div class="price">'+INR(l.price)+'</div>'
+      +(l.owner==="me"&&l.status!=="active"
+        ? '<div class="status '+l.status+'" style="margin:2px 0 4px">'+t("tab"+l.status.charAt(0).toUpperCase()+l.status.slice(1))+'</div>' : "")
       +'<div class="loc">📍 '+esc(l.loc.locality)+(state.locAllowed?' · '+l.loc.km+'km':"")+'</div></div></article>';
   }
 
+  function visibleFeed(){
+    return state.listings.filter(function(l){
+      if(l.status==="active") return true;
+      // your own ad is always visible to you, badged, even before approval
+      return l.owner==="me" && (l.status==="pending"||l.status==="rejected");
+    });
+  }
   S.home=function(){
-    var feat = state.listings.filter(function(l){return l.status==="active"&&l.type==="sale";});
+    var feat = visibleFeed().filter(function(l){return l.type==="sale";});
     return '<section class="screen active">'+bar({brand:true,lang:true,bell:true})
       +'<div class="searchbar">🔍 <input id="home-search" placeholder="'+t("searchPh")+'" aria-label="Search"></div>'
       +'<div class="chips" id="home-chips">'
       + CATS.slice(0,6).map(function(c,i){return '<button class="chip'+(i===0?" active":"")+'" data-chip="'+c.k+'"><span class="e">'+c.e+'</span>'+cat(c.k)+'</button>';}).join("")
       +'<button class="chip" data-go="browse"><span class="e">⋯</span>'+t("seeAll")+'</button></div>'
       +'<div class="safety-strip"><span class="si">🛡️</span><span>'+t("safety")+'</span></div>'
-      +'<div class="section-head"><h2>'+t("featured")+'</h2><button class="btn-ghost" data-go="browse">'+t("seeAll")+' →</button></div>'
-      +'<div class="grid2">'+feat.map(card).join("")+'</div>'
+      +'<div class="section-head"><h2>'+t("featured")+'</h2>'
+      +(feat.length?'<button class="btn-ghost" data-go="browse">'+t("seeAll")+' →</button>':"")+'</div>'
+      +(feat.length
+        ? '<div class="grid2">'+feat.map(card).join("")+'</div>'
+        : '<div class="empty"><div class="ee">🐐</div><p>'+t("emptyFeed")+'</p>'
+          +'<button class="btn btn-primary" data-go="post" style="width:auto;margin-top:14px">+ '+t("postAd")+'</button></div>')
       +'<div style="height:14px"></div></section>';
   };
 
   S.browse=function(p){
     p=p||{}; var selCat=p.cat||state.browseCat||"all"; state.browseCat=selCat;
     var q=(state.browseQ||"").toLowerCase();
-    var items=state.listings.filter(function(l){
-      if(l.status!=="active") return false;
+    var items=visibleFeed().filter(function(l){
       if(selCat!=="all" && l.category!==selCat) return false;
       if(q && esc(l.title).toLowerCase().indexOf(q)<0) return false;
       return true;
@@ -451,7 +465,7 @@
 
   S.nearby=function(){
     var r=state.radius;
-    var items=state.listings.filter(function(l){return l.status==="active"&&l.type==="sale"&&(!state.locAllowed||l.loc.km<=r);})
+    var items=visibleFeed().filter(function(l){return l.type==="sale"&&(!state.locAllowed||l.loc.km<=r);})
       .sort(function(a,b){return a.loc.km-b.loc.km;});
     var perm = state.locAllowed ? "" :
       '<div class="perm" id="perm"><p><b>'+t("permTitle")+'</b><br>'+t("permMsg")+'</p>'
@@ -1126,9 +1140,15 @@
     if(!LIVE) return Promise.resolve();
     var jobs=[];
     if(["home","browse","nearby","listing"].indexOf(route)>=0){
-      jobs.push(API.listings({limit:60}).then(function(r){
-        var mine = state.listings.filter(function(l){return l.owner==="me"&&l.status!=="active";});
-        state.listings = (r.listings||[]).map(mapListing).concat(mine);
+      jobs.push(Promise.all([
+        API.listings({limit:60}),
+        API.token ? API.myListings().catch(function(){return {listings:[]};}) : Promise.resolve({listings:[]})
+      ]).then(function(res){
+        var feed = (res[0].listings||[]).map(mapListing);
+        var ids  = {}; feed.forEach(function(l){ ids[l.id]=1; });
+        // your own pending/rejected ads, which the public feed correctly omits
+        var mine = (res[1].listings||[]).map(mapListing).filter(function(l){ return !ids[l.id]; });
+        state.listings = feed.concat(mine);
       }));
     }
     if(["mylistings","post","preview"].indexOf(route)>=0){
