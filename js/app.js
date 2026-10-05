@@ -55,6 +55,9 @@
       notifAskSub:"Get alerted when a buyer messages you or a goat is listed near you.",
       notifAllow:"Allow", notifOn:"Notifications on", notifOff:"Notifications off",
       notifBlocked:"Blocked in your browser settings.",
+      notifTest:"Test", notifTestTitle:"Namma Santhai",
+      notifTestBody:"Notifications are working on this device.",
+      notifTestSent:"Test notification sent",
       adminByNumber:"Granted by your phone number, not a switch.",
       photoFailed:"Could not read that photo. Try another.",
       noOtpNote:"Trial: signing in with a number only. No code is sent and the number is not verified.",
@@ -143,6 +146,9 @@
       notifAskSub:"வாங்குபவர் செய்தி அனுப்பும்போது அல்லது அருகில் ஆடு வரும்போது அறிவிப்பு பெறுங்கள்.",
       notifAllow:"அனுமதி", notifOn:"அறிவிப்புகள் இயக்கத்தில்", notifOff:"அறிவிப்புகள் அணைக்கப்பட்டது",
       notifBlocked:"உலாவி அமைப்புகளில் தடுக்கப்பட்டுள்ளது.",
+      notifTest:"சோதனை", notifTestTitle:"நம்ம சந்தை",
+      notifTestBody:"இந்த சாதனத்தில் அறிவிப்புகள் வேலை செய்கின்றன.",
+      notifTestSent:"சோதனை அறிவிப்பு அனுப்பப்பட்டது",
       adminByNumber:"உங்கள் தொலைபேசி எண் மூலம் வழங்கப்படுகிறது.",
       photoFailed:"படத்தைப் படிக்க முடியவில்லை. வேறு ஒன்றை முயற்சிக்கவும்.",
       enterMobile:"உங்கள் மொபைல் எண்ணை உள்ளிடவும்", otpSub:"உங்கள் எண்ணைச் சரிபார்க்க 6-இலக்க குறியீடு அனுப்புவோம்.",
@@ -695,6 +701,7 @@
       +'<div class="pls">'+(notifState()==="granted"?("✔ "+t("notifOn"))
           :notifState()==="denied"?t("notifBlocked"):t("notifAskSub"))+'</div></div>'
       +(notifState()==="default"?'<button class="btn sm btn-primary" id="notif-allow-2" style="width:auto">'+t("notifAllow")+'</button>':"")
+      +(notifState()==="granted"?'<button class="btn sm btn-outline" id="notif-test" style="width:auto">'+t("notifTest")+'</button>':"")
       +'</div>'
       +'<div class="set-group-title">'+t("notifTopics")+'</div>'+topics
       +'<div class="set-group-title">'+t("alertRadius")+'</div>'
@@ -1112,6 +1119,14 @@
         if(p==="granted") startNotifPolling();
       }).catch(function(){});
     }
+    if(e.target.id==="notif-test"){
+      if(notifState()==="granted"){
+        try{ new Notification(t("notifTestTitle"),{body:t("notifTestBody"),
+             icon:"icons/icon-192.png",tag:"ns-test"}); toast(t("notifTestSent")); }
+        catch(err){ toast(t("notifOff")); }
+      }
+      return;
+    }
     if(e.target.id==="notif-later"){
       try{ localStorage.setItem("ns_notif_asked","1"); }catch(err){}
       hideNotifCard();
@@ -1121,24 +1136,35 @@
   // While the app is open, poll the server and raise a real notification for
   // anything new. (True background push needs a push service + VAPID keys and
   // is a separate piece of work - this does not pretend to be that.)
-  var notifTimer=null, lastNotifId=0;
+  var notifTimer=null, lastNotifId=0, notifPrimed=false;
+  function pollNotifications(){
+    if(!LIVE || !API.token) return;
+    if(notifState()!=="granted") return;
+    API.notifications().then(function(r){
+      var list=r.notifications||[];
+      var maxId=list.length?Math.max.apply(null,list.map(function(n){return n.id;})):0;
+      // THE BUG THIS FIXES: the old code used `if(!lastNotifId)` to detect the
+      // first pass. A new account has NO notifications, so lastNotifId stayed 0
+      // (falsy) and every single poll re-took the first-pass branch - the first
+      // notification could never fire. Prime with an explicit flag instead.
+      if(!notifPrimed){ notifPrimed=true; lastNotifId=maxId; return; }
+      list.filter(function(n){ return n.id>lastNotifId && n.unread; })
+          .forEach(fireNotification);
+      if(maxId>lastNotifId) lastNotifId=maxId;
+    }).catch(function(){});
+  }
   function startNotifPolling(){
     if(notifTimer || !LIVE) return;
     if(notifState()!=="granted") return;
+    pollNotifications();                                  // prime straight away
     notifTimer=setInterval(function(){
-      if(document.hidden) return;
-      if(!LIVE || !API.token){ return; }
-      API.notifications().then(function(r){
-        var list=r.notifications||[];
-        if(!lastNotifId){                       // first pass: just set the mark
-          lastNotifId=list.length?Math.max.apply(null,list.map(function(n){return n.id;})):0;
-          return;
-        }
-        list.filter(function(n){ return n.id>lastNotifId && n.unread; })
-            .forEach(function(n){ fireNotification(n); });
-        if(list.length) lastNotifId=Math.max.apply(null,list.map(function(n){return n.id;}));
-      }).catch(function(){});
-    }, 25000);
+      if(document.hidden) return;                         // don't buzz a backgrounded tab
+      pollNotifications();
+    }, 12000);
+    // Coming back to the app should check immediately, not wait for the timer.
+    document.addEventListener("visibilitychange",function(){
+      if(!document.hidden) pollNotifications();
+    });
   }
   function fireNotification(n){
     if(notifState()!=="granted") return;
