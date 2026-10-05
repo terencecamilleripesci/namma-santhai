@@ -137,10 +137,30 @@ never raw HTML, so the client can translate them.
 
 ---
 
+## Live trial URLs (as of 5 Oct 2026)
+
+| | |
+|---|---|
+| **Give the client this** | `https://terencecamilleripesci.github.io/namma-santhai/?api=https://raspberrypi.silverside-tench.ts.net:8443/nsapi` |
+| Backend (public) | `https://raspberrypi.silverside-tench.ts.net:8443/nsapi` |
+| Admin sign-in | **9843575561** |
+
+The `?api=` part matters. Without it the app runs offline on the phone and
+nothing is shared between people.
+
+> **Tailscale Funnel only works on ports 443, 8443 and 10000.** Any other port
+> will say "Funnel on" in status but silently never serve publicly - that is
+> why this sits on a PATH of 8443 (`/nsapi`) rather than its own port. Use
+> `funnel --set-path`, never `serve --set-path`, which drops the port to
+> tailnet-only and takes live sites down.
+
+Turn public access off:  `tailscale funnel --https=8443 --set-path /nsapi off`
+
+---
+
 ## What's still missing before this is production
 
-1. **HTTPS + a public URL.** It binds to localhost. Put it behind Tailscale
-   Funnel (or a tunnel) to let the company reach it.
+1. ~~HTTPS + a public URL~~ - done, see above.
 2. **Real SMS OTP** — currently demo. See the GSM section.
 3. **Backups.** One sqlite file, no replication. `data/` is gitignored.
 4. **Rate limiting per IP** (only per-phone today) and abuse/report tooling.
