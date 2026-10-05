@@ -47,6 +47,12 @@
       enterMobile:"Enter your mobile number", otpSub:"We'll send a 6-digit code to verify your number.",
       noOtpSub:"Enter your mobile number to sign in. No password needed.",
       emptyFeed:"No listings yet. Be the first to post one.",
+      liveTitle:"Your ad is live",
+      liveNow:"Live now",
+      liveExplain:"It is visible to buyers straight away. Our team reviews ads afterwards and will contact you if anything needs changing.",
+      liveToast:"Ad posted - live now",
+      adminByNumber:"Granted by your phone number, not a switch.",
+      photoFailed:"Could not read that photo. Try another.",
       noOtpNote:"Trial: signing in with a number only. No code is sent and the number is not verified.",
       mobileLabel:"Mobile number", sendOtp:"Send OTP", or:"OR", google:"Continue with Google",
       privacyNote:"Your number is private. Buyers never see it unless you turn on contact.",
@@ -125,6 +131,12 @@
       noOtpSub:"உள்நுழைதல்: மொபைல் எண் மட்டும் போதும்.",
       noOtpNote:"சோதனை: எண் மூலம் மட்டும் உள்நுழைவு.",
       emptyFeed:"இன்னும் விளம்பரங்கள் இல்லை. முதலில் நீங்கள் இடுங்கள்.",
+      liveTitle:"உங்கள் விளம்பரம் நேரலையில்",
+      liveNow:"இப்போது நேரலையில்",
+      liveExplain:"வாங்குபவர்களுக்கு உடனே தெரியும். எங்கள் குழு பின்னர் சரிபார்க்கும்.",
+      liveToast:"விளம்பரம் வெளியிடப்பட்டது",
+      adminByNumber:"உங்கள் தொலைபேசி எண் மூலம் வழங்கப்படுகிறது.",
+      photoFailed:"படத்தைப் படிக்க முடியவில்லை. வேறு ஒன்றை முயற்சிக்கவும்.",
       enterMobile:"உங்கள் மொபைல் எண்ணை உள்ளிடவும்", otpSub:"உங்கள் எண்ணைச் சரிபார்க்க 6-இலக்க குறியீடு அனுப்புவோம்.",
       mobileLabel:"மொபைல் எண்", sendOtp:"OTP அனுப்பு", or:"அல்லது", google:"Google மூலம் தொடரவும்",
       privacyNote:"உங்கள் எண் தனிப்பட்டது. தொடர்பை இயக்கும் வரை வாங்குபவர்கள் பார்க்க முடியாது.",
@@ -250,7 +262,21 @@
     catch(e){ state=freshState(); }
     lang = state.lang || "en";
   }
-  function save(){ try{ state.lang=lang; localStorage.setItem(LS, JSON.stringify(state)); }catch(e){} }
+  function save(){
+    try{
+      state.lang=lang;
+      localStorage.setItem(LS, JSON.stringify(state));
+    }catch(e){
+      // A camera photo held in the draft can exceed the ~5 MB localStorage
+      // quota. Persist everything EXCEPT the draft images (they stay in
+      // memory and still upload) rather than silently saving nothing.
+      try{
+        var slim=JSON.parse(JSON.stringify(state));
+        if(slim.draft) slim.draft.photos=[];
+        localStorage.setItem(LS, JSON.stringify(slim));
+      }catch(e2){}
+    }
+  }
 
   /* ---------- small helpers ---------- */
   var app = function(){ return document.getElementById("app"); };
@@ -562,8 +588,9 @@
   S.success=function(){
     return '<section class="screen active"><div class="success-wrap">'
       +'<div class="success-ring"><span class="clock">⏳</span></div>'
-      +'<h2>'+t("submittedTitle")+'</h2>'
-      +'<div class="pending-card"><h3>🟢 '+t("tabPending")+'</h3><p style="margin:0;font-size:13px;color:#5a4a16">'+t("pendingExplain")+'</p></div>'
+      +'<h2>'+(state.postedLive?t("liveTitle"):t("submittedTitle"))+'</h2>'
+      +'<div class="pending-card"><h3>🟢 '+(state.postedLive?t("liveNow"):t("tabPending"))+'</h3>'
+      +'<p style="margin:0;font-size:13px;color:#5a4a16">'+(state.postedLive?t("liveExplain"):t("pendingExplain"))+'</p></div>'
       +'<button class="btn btn-primary" data-go="mylistings">'+t("goMyListings")+'</button>'
       +'<button class="btn btn-ghost" data-go="home" style="width:100%">'+t("backHome")+'</button>'
       +'</div></section>';
@@ -659,7 +686,13 @@
       +'<div class="set-group-title">'+t("alertRadius")+'</div>'
       +'<div class="radius-row" style="padding:10px 16px">'+[5,10,25,50].map(function(k){return '<button class="rchip'+(u.alerts.radius===k?" active":"")+'" data-setradius="'+k+'">'+k+' km</button>';}).join("")+'</div>'
       +'<div class="set-group-title">'+t("account")+'</div>'
-      +'<div class="prow" id="admin-row"><div class="pic">🛡️</div><div class="pl"><div class="plt">'+t("adminMode")+'</div><div class="pls">'+(state.role==="admin"?t("verified"):"")+'</div></div><button class="switch '+(state.role==="admin"?"on":"")+'" data-admin role="switch" aria-checked="'+(state.role==="admin")+'"></button></div>'
+      + (LIVE
+          // Server decides. A local switch here would be a lie: the API returns
+          // 403 no matter what the phone thinks, which is what made "I gave
+          // myself admin" silently fail.
+          ? '<div class="prow"><div class="pic">🛡️</div><div class="pl"><div class="plt">'+t("adminMode")+'</div>'
+            +'<div class="pls">'+(state.role==="admin"?("✔ "+t("verified")):t("adminByNumber"))+'</div></div></div>'
+          : '<div class="prow" id="admin-row"><div class="pic">🛡️</div><div class="pl"><div class="plt">'+t("adminMode")+'</div><div class="pls"></div></div><button class="switch '+(state.role==="admin"?"on":"")+'" data-admin role="switch" aria-checked="'+(state.role==="admin")+'"></button></div>')
       + (state.role==="admin"?'<div class="prow" data-go="admin"><div class="pic">📥</div><div class="pl"><div class="plt">'+t("adminQueue")+'</div></div><span class="chev">›</span></div>':"")
       +'<div class="prow" id="loc-help"><div class="pic">📍</div><div class="pl"><div class="plt">'+t("locationHelp")+'</div></div><span class="chev">›</span></div>'
       +'<div class="prow" id="replay"><div class="pic">🔄</div><div class="pl"><div class="plt">'+t("replayTour")+'</div></div><span class="chev">›</span></div>'
@@ -838,7 +871,8 @@
         if(!/^image\//.test(file.type)){ left--; return; }
         shrink(file, function(dataUrl){
           if(dataUrl) d.photos.push(dataUrl);
-          if(--left<=0){ save(); toast(t("photoAdded"));
+          else toast(t("photoFailed"));
+          if(--left<=0){ save(); toast(d.photos.length?t("photoAdded"):t("photoFailed"));
             var sc=app().scrollTop; go("post"); app().scrollTop=sc; }
         });
       });
@@ -883,7 +917,11 @@
         unit:d.unit,qty:d.qty||1,desc:d.desc,photos:d.photos.slice(),
         loc:{district:d.loc.district||"",village:d.loc.village||"",
              locality:d.loc.locality||"", lat:d.loc.mode==="gps"?9.93:null, lon:d.loc.mode==="gps"?78.12:null}};
-      var done=function(){ state.draft=null; save(); toast(t("postedToast")); go("success"); };
+      var done=function(res){
+        var st=(res&&res.listing&&res.listing.status)||"pending";
+        state.postedLive=(st==="active"); save();
+        state.draft=null; save();
+        toast(state.postedLive?t("liveToast"):t("postedToast")); go("success"); };
       var fail=function(e){ if(btn){btn.disabled=false;btn.textContent=t("submitApproval");} apiFail(e); };
       if(d.editId) API.editListing(d.editId,payload).then(done).catch(fail);
       else API.createListing(payload).then(done).catch(fail);

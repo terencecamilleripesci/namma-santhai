@@ -33,6 +33,15 @@ ADMIN_PHONES = [p.strip() for p in os.environ.get("NS_ADMIN_PHONES", "").split("
 #   otp            -> the full code flow (kept intact, see request_otp/verify).
 AUTH_MODE = os.environ.get("NS_AUTH_MODE", "open").strip().lower()
 
+# MODERATION
+#   post  (DEFAULT) -> a new ad goes LIVE immediately; admins moderate after the
+#                      fact and can still reject/remove it. This is how real
+#                      marketplaces work: holding every ad behind a human for
+#                      hours kills listing volume, and sellers think it broke.
+#   pre             -> every ad waits in the approval queue before anyone sees it.
+MODERATION = os.environ.get("NS_MODERATION", "post").strip().lower()
+NEW_STATUS = "pending" if MODERATION == "pre" else "active"
+
 # Browsers calling this from GitHub Pages need CORS.
 ALLOWED_ORIGINS = [o.strip() for o in os.environ.get(
     "NS_ALLOWED_ORIGINS",
@@ -460,14 +469,15 @@ def create_listing():
     con = D.connect()
     cur = con.execute(
         "INSERT INTO listings(owner_id,type,category,title,description,price,unit,qty,specs,"
-        "district,village,locality,lat,lon,status,created_at,updated_at) "
-        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?,?)",
+        "district,village,locality,lat,lon,status,created_at,updated_at,approved_at) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (g.user["id"], "wanted" if is_wanted else "sale", str(d["category"])[:40],
          str(d["title"])[:140], str(d.get("desc", ""))[:4000], int(d["price"]),
          str(d.get("unit", "total"))[:10], int(d.get("qty", 1) or 1),
          json.dumps(d.get("specs") or {})[:2000],
          str(loc.get("district", ""))[:80], str(loc.get("village", ""))[:80],
-         str(loc.get("locality", ""))[:160], loc.get("lat"), loc.get("lon"), now, now))
+         str(loc.get("locality", ""))[:160], loc.get("lat"), loc.get("lon"),
+         NEW_STATUS, now, now, now if NEW_STATUS == "active" else None))
     lid = cur.lastrowid
     save_photos(con, lid, g.user["id"], d.get("photos") or [])
     con.commit()
@@ -509,13 +519,14 @@ def edit_listing(lid):
     # Edits go back to pending for re-review. Same row, SAME ID.
     con.execute(
         "UPDATE listings SET type=?,category=?,title=?,description=?,price=?,unit=?,qty=?,"
-        "specs=?,district=?,village=?,locality=?,lat=?,lon=?,status='pending',reject_reason='',"
+        "specs=?,district=?,village=?,locality=?,lat=?,lon=?,status=?,reject_reason='',"
         "updated_at=? WHERE id=?",
         ("wanted" if is_wanted else "sale", str(merged["category"])[:40], str(merged["title"])[:140],
          str(merged["desc"])[:4000], int(merged["price"]), str(d.get("unit", r["unit"]))[:10],
          int(d.get("qty", r["qty"]) or 1), json.dumps(d.get("specs") or {})[:2000],
          str(loc.get("district", ""))[:80], str(loc.get("village", ""))[:80],
-         str(loc.get("locality", ""))[:160], loc.get("lat"), loc.get("lon"), D.now(), lid))
+         str(loc.get("locality", ""))[:160], loc.get("lat"), loc.get("lon"),
+         NEW_STATUS, D.now(), lid))
     if "photos" in d:
         save_photos(con, lid, g.user["id"], d.get("photos") or [])
     con.commit()
@@ -553,7 +564,14 @@ def media(key):
 @require_admin
 def admin_pending():
     con = D.connect()
-    rows = con.execute("SELECT * FROM listings WHERE status='pending' ORDER BY created_at").fetchall()
+    if MODERATION == "pre":
+        rows = con.execute(
+            "SELECT * FROM listings WHERE status='pending' ORDER BY created_at").fetchall()
+    else:
+        # post-moderation: ads are already live, so the queue is a review list
+        rows = con.execute(
+            "SELECT * FROM listings WHERE status IN ('pending','active') "
+            "ORDER BY created_at DESC LIMIT 50").fetchall()
     out = [listing_json(con, r) for r in rows]
     con.close()
     return jsonify({"listings": out})
@@ -574,9 +592,12 @@ def approve(lid):
         r = con.execute("SELECT * FROM listings WHERE id=?", (lid,)).fetchone()
         if not r:
             con.rollback(); con.close(); return err("not_found", "Listing not found", 404)
-        if r["status"] != "pending":
+        if r["status"] not in ("pending", "active"):
             con.rollback(); con.close()
             return err("already_decided", "Already decided", 409)   # guards double-tap
+        if r["status"] == "active" and MODERATION == "pre":
+            con.rollback(); con.close()
+            return err("already_decided", "Already decided", 409)
         con.execute("UPDATE listings SET status='active',approved_at=?,updated_at=? WHERE id=?",
                     (D.now(), D.now(), lid))
         con.execute("INSERT INTO approval_audit(admin_id,listing_id,decision,reason,created_at) "
@@ -601,7 +622,7 @@ def reject(lid):
         r = con.execute("SELECT * FROM listings WHERE id=?", (lid,)).fetchone()
         if not r:
             con.rollback(); con.close(); return err("not_found", "Listing not found", 404)
-        if r["status"] != "pending":
+        if r["status"] not in ("pending", "active"):
             con.rollback(); con.close(); return err("already_decided", "Already decided", 409)
         con.execute("UPDATE listings SET status='rejected',reject_reason=?,updated_at=? WHERE id=?",
                     (reason[:500], D.now(), lid))
@@ -762,7 +783,7 @@ def health():
               for t in ("users", "listings", "messages", "notifications")}
     con.close()
     return jsonify({"ok": True, "trial": True, "counts": counts,
-                    "auth_mode": AUTH_MODE,
+                    "auth_mode": AUTH_MODE, "moderation": MODERATION,
                     "otp_required": AUTH_MODE != "open",
                     # With auth_mode=open nothing can send an SMS at all.
                     "sms": {"disabled": True} if AUTH_MODE == "open" else SMS.status()})
