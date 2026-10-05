@@ -12,15 +12,29 @@ production-shaped flow — and so it can be switched off and deleted in one move
 ## Start / stop (the only two commands you need)
 
 ```bash
-bash server/START.sh          # start  (127.0.0.1:8105, OTP = demo)
-bash server/STOP.sh           # stop,  KEEPS the data
-bash server/STOP.sh --wipe    # stop AND delete every account/listing/photo
+bash server/START.sh          # start  (127.0.0.1:8105)
+bash server/STOP.sh           # stop - ACCOUNTS AND LISTINGS ARE KEPT
+bash server/AUTOSTART.sh on   # keep it running across reboots (currently ON)
+bash server/AUTOSTART.sh off  # remove the autostart unit
 ```
 
-Nothing is installed, registered, or scheduled. **No systemd unit, no cron.**
-It does not survive a reboot — if the Pi restarts, it stays off until you run
-`START.sh` again. To remove it completely: stop it and delete the `server/`
-folder.
+**Accounts persist.** Data lives in `data/namma.db` and survives stop/start,
+restarts and reboots. Signing in with the same phone number returns the SAME
+account - testers never need to re-register because of a deploy.
+
+Erasing now needs saying so twice, and takes a backup first:
+
+```bash
+bash server/STOP.sh --wipe --yes-delete-all-accounts   # backup -> server/backups/
+```
+
+A bare `--wipe` is REFUSED. A stray `--wipe` during a deploy is exactly how
+testers lost their accounts.
+
+A **user-level** systemd unit (`~/.config/systemd/user/namma-santhai.service`)
+keeps it alive across reboots. It is scoped to this project, touches nothing
+else on the Pi, and `AUTOSTART.sh off` removes it. To remove the backend
+completely: `AUTOSTART.sh off`, then delete the `server/` folder.
 
 Everything it creates lives in `server/data/` (db + uploaded photos). Nothing is
 written anywhere else on the Pi.
