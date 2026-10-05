@@ -43,7 +43,7 @@
     en:{
       tagline:"Buy · Sell · Support Our Farmers", chooseLang:"Choose your language",
       welcomeBlurb:"Your local market for goats, sheep, cattle, farm goods and vehicles — near you, in Tamil Nadu.",
-      letsBegin:"Let's Begin", trialNote:"Private trial — simulated login, no SMS is sent.",
+      letsBegin:"Let's Begin", trialNote:"Trial: sign in with your mobile number. No password, no code.",
       enterMobile:"Enter your mobile number", otpSub:"We'll send a 6-digit code to verify your number.",
       noOtpSub:"Enter your mobile number to sign in. No password needed.",
       emptyFeed:"No listings yet. Be the first to post one.",
@@ -121,7 +121,7 @@
     ta:{
       tagline:"வாங்க · விற்க · விவசாயிகளை ஆதரிக்க", chooseLang:"உங்கள் மொழியைத் தேர்ந்தெடுக்கவும்",
       welcomeBlurb:"ஆடு, செம்மறி, கால்நடை, விவசாயப் பொருட்கள் மற்றும் வாகனங்களுக்கான உங்கள் உள்ளூர் சந்தை — தமிழ்நாட்டில், உங்களுக்கு அருகில்.",
-      letsBegin:"தொடங்கலாம்", trialNote:"தனிப்பட்ட சோதனை — மாதிரி உள்நுழைவு, SMS அனுப்பப்படாது.",
+      letsBegin:"தொடங்கலாம்", trialNote:"சோதனை: மொபைல் எண்ணில் உள்நுழையவும். கடவுச்சொல் இல்லை.",
       noOtpSub:"உள்நுழைதல்: மொபைல் எண் மட்டும் போதும்.",
       noOtpNote:"சோதனை: எண் மூலம் மட்டும் உள்நுழைவு.",
       emptyFeed:"இன்னும் விளம்பரங்கள் இல்லை. முதலில் நீங்கள் இடுங்கள்.",
@@ -235,47 +235,15 @@
     o.loc=o.loc||{mode:"manual",district:"Madurai",village:"",locality:"Madurai, Tamil Nadu",km:5};
     o.created=o.created||"today"; return o;
   }
-  function seedListings(){
-    return [
-      L({id:"l1",owner:"ramesh",category:"goat",title:"Jamunapari Goat (Male)",price:18000,photos:["assets/goat-jamunapari.jpg"],loc:{mode:"manual",district:"Madurai",village:"Alanganallur",locality:"Alanganallur, Madurai",km:2},status:"active",views:132,specs:{breed:"Jamunapari",sex:"Male",age:"14 months",weight:"32 kg",health:"Vaccinated"},desc:"Healthy, well-fed Jamunapari raised in the village. Tall with good body. Vaccinated. Serious buyers only, price slightly negotiable. Inspect before buying."}),
-      L({id:"l2",owner:"ramesh",category:"goat",title:"Boer Goat (Male)",price:22500,photos:["assets/goat-boer.jpg"],loc:{mode:"manual",district:"Madurai",village:"Alanganallur",locality:"Alanganallur, Madurai",km:3},status:"active",views:98,specs:{breed:"Boer",sex:"Male",age:"18 months",weight:"42 kg",health:"Vaccinated"},desc:"Strong Boer male, good muscle. Suitable for breeding or Bakrid. Vaccinated and dewormed."}),
-      L({id:"l3",owner:"selvi",category:"goat",title:"Kanni Aadu (Male)",price:16000,photos:["assets/goat-kanni.jpg"],loc:{mode:"manual",district:"Madurai",village:"Melur",locality:"Melur, Madurai",km:2},status:"active",views:201,specs:{breed:"Kanni",sex:"Male",age:"10 months",weight:"28 kg",health:"Vaccinated"},desc:"Native Kanni breed, lean and active. Village raised. WhatsApp me for more photos."}),
-      L({id:"l4",owner:"senthil",category:"goat",title:"Karuppu Aadu (Female)",price:14500,photos:["assets/goat-karuppu.jpg"],loc:{mode:"manual",district:"Trichy",village:"Srirangam",locality:"Srirangam, Trichy",km:5},status:"active",views:67,specs:{breed:"Native",sex:"Female",age:"12 months",weight:"26 kg",health:"Vaccinated"},desc:"Healthy female goat, good for breeding. Message me in the app."}),
-      L({id:"l5",owner:"ramesh",category:"goat",title:"Tellicherry Goat (Male)",price:20000,photos:["assets/goat-tellicherry.jpg"],loc:{mode:"manual",district:"Madurai",village:"Melur",locality:"Melur, Madurai",km:8},status:"active",views:154,specs:{breed:"Tellicherry",sex:"Male",age:"15 months",weight:"36 kg",health:"Vaccinated"},desc:"White Tellicherry male, clean coat, healthy. Call to visit."}),
-      L({id:"l6",owner:"murugan",category:"goat",title:"Boer Goat (Female)",price:21000,photos:["assets/goat-boer.jpg"],loc:{mode:"manual",district:"Dindigul",village:"Oddanchatram",locality:"Dindigul",km:18},status:"active",views:89,specs:{breed:"Boer",sex:"Female",age:"16 months",weight:"38 kg",health:"Vaccinated"},desc:"Boer female, good milk line. Inspect in person."}),
-      L({id:"w1",owner:"arun",type:"wanted",category:"goat",title:"Wanted: 2 Kanni goats under ₹15,000",price:15000,qty:2,loc:{mode:"manual",district:"Madurai",village:"",locality:"Madurai",km:6},status:"active",desc:"Looking for 2 healthy Kanni male goats, budget ₹15,000 each. Near Madurai preferred."}),
-      // user's own
-      L({id:"m1",owner:"me",category:"goat",title:"Kanni Aadu (Male)",price:25000,photos:["assets/goat-kanni.jpg"],loc:{mode:"manual",district:"Madurai",village:"Alanganallur",locality:"Alanganallur, Madurai",km:0},status:"active",views:245,specs:{breed:"Kanni",sex:"Male",age:"13 months",weight:"30 kg",health:"Vaccinated"},desc:"My healthy Kanni male. Village raised."}),
-      L({id:"m2",owner:"me",category:"goat",title:"Tellicherry Goat (Male)",price:19000,photos:["assets/goat-tellicherry.jpg"],loc:{mode:"manual",district:"Madurai",village:"Alanganallur",locality:"Alanganallur, Madurai",km:0},status:"pending",views:0,specs:{breed:"Tellicherry",sex:"Male",age:"11 months",weight:"27 kg",health:"Vaccinated"},desc:"White Tellicherry male, waiting for approval."}),
-      L({id:"m3",owner:"me",category:"goat",title:"Boer Goat (Male)",price:22000,photos:["assets/goat-boer.jpg"],loc:{mode:"manual",district:"Madurai",village:"Alanganallur",locality:"Alanganallur, Madurai",km:0},status:"rejected",rej:"Photo was cropped — please upload a photo showing the whole animal.",views:0,specs:{breed:"Boer",sex:"Male"},desc:"Boer male."}),
-      L({id:"m4",owner:"me",category:"goat",title:"Karuppu Aadu (Female)",price:17000,photos:["assets/goat-karuppu.jpg"],loc:{mode:"manual",district:"Madurai",village:"Alanganallur",locality:"Alanganallur, Madurai",km:0},status:"sold",views:402,specs:{breed:"Native",sex:"Female"},desc:"Sold goat."}),
-      // another seller pending (for admin queue)
-      L({id:"p1",owner:"selvi",category:"goat",title:"Jamunapari Goat (Female)",price:17500,photos:["assets/goat-jamunapari.jpg"],loc:{mode:"manual",district:"Madurai",village:"Melur",locality:"Melur, Madurai",km:4},status:"pending",views:0,specs:{breed:"Jamunapari",sex:"Female",age:"12 months",weight:"29 kg",health:"Vaccinated"},desc:"Jamunapari female, awaiting approval."})
-    ];
-  }
-  function seedConvos(){
-    return [
-      {id:"c1",listing:"l1",withKey:"ramesh",unread:1,msgs:[
-        {who:"them",en:"Is this goat still available?",ta:"இந்த ஆடு இன்னும் கிடைக்குமா?",t:"10:28 AM"},
-        {who:"me",en:"Yes, it is available.",ta:"ஆம், கிடைக்கிறது.",t:"10:30 AM"},
-        {who:"them",en:"Can you tell the weight and age?",ta:"எடை மற்றும் வயது சொல்ல முடியுமா?",t:"10:34 AM"},
-        {who:"me",en:"Around 32 kg and 14 months old.",ta:"சுமார் 32 கிலோ, 14 மாதம்.",t:"10:36 AM"},
-        {who:"them",en:"Can I come and see tomorrow?",ta:"நாளை வந்து பார்க்கலாமா?",t:"10:37 AM"}]},
-      {id:"c2",listing:"l3",withKey:"selvi",unread:0,msgs:[
-        {who:"them",en:"Can you share more photos?",ta:"மேலும் படங்கள் அனுப்ப முடியுமா?",t:"9:15 AM"},
-        {who:"me",en:"Sure, sending now.",ta:"சரி, இப்போது அனுப்புகிறேன்.",t:"9:20 AM"}]},
-      {id:"c3",listing:"w1",withKey:"arun",unread:0,msgs:[
-        {who:"them",en:"Final price please?",ta:"கடைசி விலை என்ன?",t:"Yesterday"}]}
-    ];
-  }
-  function seedNotifs(){
-    return [
-      {id:"n1",type:"approved",listing:"m1",unread:true,time:{en:"1 hour ago",ta:"1 மணி நேரம் முன்"},extra:{en:"Your Kanni Aadu is now live.",ta:"உங்கள் கன்னி ஆடு இப்போது நேரலையில்."}},
-      {id:"n2",type:"message",conv:"c1",unread:true,time:{en:"10 min ago",ta:"10 நிமிடம் முன்"},extra:{en:"Ramesh Kumar sent a message.",ta:"ரமேஷ் குமார் செய்தி அனுப்பினார்."}},
-      {id:"n3",type:"nearby",unread:false,time:{en:"3 hours ago",ta:"3 மணி நேரம் முன்"},extra:{en:"5 new goats near Madurai.",ta:"மதுரைக்கு அருகில் 5 புதிய ஆடுகள்."}},
-      {id:"n4",type:"rejected",listing:"m3",unread:false,time:{en:"Yesterday",ta:"நேற்று"},extra:{en:"See the reason and resubmit.",ta:"காரணத்தைப் பார்த்து மீண்டும் அனுப்பவும்."}}
-    ];
-  }
+
+  // One-time cleanup: phones that opened an earlier build still hold seeded
+  // demo listings under the old key. Drop every legacy key so nobody keeps
+  // seeing fake goats after an update.
+  try{
+    ["ns_state","ns_state_v1","ns_state_v2","ns_state_v3"].forEach(function(k){
+      localStorage.removeItem(k);
+    });
+  }catch(e){}
 
   function load(){
     try{ var raw=localStorage.getItem(LS); if(raw){ state=JSON.parse(raw); if(!state.listings) state=freshState(); } else state=freshState(); }
@@ -289,7 +257,7 @@
   var esc = function(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); };
   function media(l, extra){
     var p = l.photos && l.photos[0];
-    if(p) return '<div class="media '+(extra||"")+'"><img src="'+p+'" alt="'+esc(l.title)+'" loading="lazy" decoding="async"><span class="demo-tag">DEMO</span></div>';
+    if(p) return '<div class="media '+(extra||"")+'"><img src="'+p+'" alt="'+esc(l.title)+'" loading="lazy" decoding="async"></div>';
     return '<div class="media '+(extra||"")+'"><span class="noimg">'+catMeta(l.category).e+'</span></div>';
   }
   function presence(s){
@@ -559,7 +527,9 @@
       +'<div class="field" style="width:120px"><label>'+t("unit")+'</label><select class="input" id="d-unit"><option value="total"'+(d.unit==="total"?" selected":"")+'>'+t("unitTotal")+'</option><option value="each"'+(d.unit==="each"?" selected":"")+'>'+t("unitEach")+'</option><option value="kg"'+(d.unit==="kg"?" selected":"")+'>'+t("unitKg")+'</option></select></div></div>'
       +'<div class="field" id="f-desc"><label>'+t("description")+' <span class="req">*</span></label><textarea class="input" id="d-desc" rows="3" placeholder="'+t("descPh")+'">'+esc(d.desc)+'</textarea><div class="err-msg">'+t("errDesc")+'</div></div>'
       +'<div class="field" id="f-photo"><label>'+t("photos")+(isWanted?"":' <span class="req">*</span>')+' <span class="hint">('+(isWanted?t("wantedPhotoHint"):t("photoHint"))+')</span></label>'
-      +'<div class="photo-add" id="photo-add">'+photoSlots+'</div><div class="err-msg">'+t("errPhoto")+'</div>'
+      +'<div class="photo-add" id="photo-add">'+photoSlots+'</div>'
+      +'<input type="file" id="photo-file" accept="image/*" multiple hidden>'
+      +'<div class="err-msg">'+t("errPhoto")+'</div>'
       +'<div class="hint">'+t("photoHint")+'</div></div>'
       +'<div class="field"><label>'+t("video")+'</label><button class="btn btn-outline" id="add-video" style="justify-content:flex-start">🎬 '+t("addVideo")+'</button></div>'
       +'<div class="field" id="f-loc"><label>'+t("locationReq")+' <span class="req">*</span></label>'
@@ -689,7 +659,7 @@
       +'<div class="set-group-title">'+t("alertRadius")+'</div>'
       +'<div class="radius-row" style="padding:10px 16px">'+[5,10,25,50].map(function(k){return '<button class="rchip'+(u.alerts.radius===k?" active":"")+'" data-setradius="'+k+'">'+k+' km</button>';}).join("")+'</div>'
       +'<div class="set-group-title">'+t("account")+'</div>'
-      +'<div class="prow" id="admin-row"><div class="pic">🛡️</div><div class="pl"><div class="plt">'+t("adminMode")+'</div><div class="pls"><span class="demo-badge">DEMO</span></div></div><button class="switch '+(state.role==="admin"?"on":"")+'" data-admin role="switch" aria-checked="'+(state.role==="admin")+'"></button></div>'
+      +'<div class="prow" id="admin-row"><div class="pic">🛡️</div><div class="pl"><div class="plt">'+t("adminMode")+'</div><div class="pls">'+(state.role==="admin"?t("verified"):"")+'</div></div><button class="switch '+(state.role==="admin"?"on":"")+'" data-admin role="switch" aria-checked="'+(state.role==="admin")+'"></button></div>'
       + (state.role==="admin"?'<div class="prow" data-go="admin"><div class="pic">📥</div><div class="pl"><div class="plt">'+t("adminQueue")+'</div></div><span class="chev">›</span></div>':"")
       +'<div class="prow" id="loc-help"><div class="pic">📍</div><div class="pl"><div class="plt">'+t("locationHelp")+'</div></div><span class="chev">›</span></div>'
       +'<div class="prow" id="replay"><div class="pic">🔄</div><div class="pl"><div class="plt">'+t("replayTour")+'</div></div><span class="chev">›</span></div>'
@@ -857,7 +827,22 @@
     bindVal("d-cat","category"); bindVal("d-title","title"); bindVal("d-price","price");
     bindVal("d-unit","unit"); bindVal("d-desc","desc");
     var pr=document.getElementById("d-price"); pr && pr.addEventListener("input",function(){ this.value=this.value.replace(/\D/g,""); d.price=this.value; });
-    document.getElementById("add-photo").addEventListener("click",function(){ d.photos.push(GOATS[d.photos.length%GOATS.length]); save(); toast(t("photoAdded")); var sc=app().scrollTop; go("post"); app().scrollTop=sc; });
+    document.getElementById("add-photo").addEventListener("click",function(){
+      document.getElementById("photo-file").click();
+    });
+    document.getElementById("photo-file").addEventListener("change",function(e){
+      var files=[].slice.call(e.target.files||[]).slice(0,6-d.photos.length);
+      if(!files.length) return;
+      var left=files.length;
+      files.forEach(function(file){
+        if(!/^image\//.test(file.type)){ left--; return; }
+        shrink(file, function(dataUrl){
+          if(dataUrl) d.photos.push(dataUrl);
+          if(--left<=0){ save(); toast(t("photoAdded"));
+            var sc=app().scrollTop; go("post"); app().scrollTop=sc; }
+        });
+      });
+    });
     document.querySelectorAll("[data-rmphoto]").forEach(function(b){ b.addEventListener("click",function(){ d.photos.splice(+this.getAttribute("data-rmphoto"),1); save(); var sc=app().scrollTop; go("post"); app().scrollTop=sc; }); });
     document.getElementById("add-video").addEventListener("click",function(){ d.video=true; toast(t("photoAdded")); });
     document.getElementById("d-gps").addEventListener("click",function(){ d.loc.mode="gps"; d.loc.locality=state.user.locality; save(); go("post"); toast(t("locToast")); });
@@ -1128,6 +1113,28 @@
            km:0}
     });
   }
+  function shrink(file, cb){
+    var MAX=1280, Q=0.82;
+    var fr=new FileReader();
+    fr.onerror=function(){ cb(null); };
+    fr.onload=function(){
+      var img=new Image();
+      img.onerror=function(){ cb(null); };
+      img.onload=function(){
+        var w=img.width, h=img.height;
+        var sc=Math.min(1, MAX/Math.max(w,h));      // never upscale
+        var cv=document.createElement("canvas");
+        cv.width=Math.round(w*sc); cv.height=Math.round(h*sc);
+        try{
+          cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
+          cb(cv.toDataURL("image/jpeg",Q));
+        }catch(e){ cb(fr.result); }
+      };
+      img.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  }
+
   function busy(on){ var el=document.getElementById("toast");
     if(on){ el.textContent="…"; el.classList.add("show"); } else el.classList.remove("show"); }
 
