@@ -6,7 +6,10 @@
    ============================================================ */
 (function () {
   "use strict";
-  var LS = "ns_state_v3";
+  // Bumped to v4 on 5 Oct 2026: v3 phones had seeded demo listings saved in
+  // localStorage, so the "remove fake data" fix did nothing for anyone who had
+  // already opened the app. Changing the key discards that old state.
+  var LS = "ns_state_v4";
 
   /* ---------- brand mark (inline SVG, no emoji logo) ---------- */
   var LOGO = '<svg viewBox="0 0 64 64" aria-hidden="true">'

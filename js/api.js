@@ -12,12 +12,20 @@
 window.NS_API = (function () {
   "use strict";
 
-  var API_BASE = "";                       // <-- set to the funnel URL when live
+  // Live trial backend. Because this is baked in, the plain app link works on
+  // its own — no ?api= needed — so everyone shares the same accounts and
+  // listings instead of each phone keeping its own private copy.
+  var API_BASE = "https://raspberrypi.silverside-tench.ts.net:8443/nsapi";
 
   try {
     var q = new URLSearchParams(location.search).get("api");
     if (q) localStorage.setItem("ns_api_base", q.replace(/\/+$/, ""));
-    API_BASE = localStorage.getItem("ns_api_base") || API_BASE;
+    // An ?api= override still wins, but a stale one saved from an earlier
+    // session must not outrank a newer built-in default.
+    var saved = localStorage.getItem("ns_api_base");
+    if (q) API_BASE = q.replace(/\/+$/, "");
+    else if (saved && localStorage.getItem("ns_api_pin") === "1") API_BASE = saved;
+    if (q) localStorage.setItem("ns_api_pin", "1");
   } catch (e) {}
 
   var token = null;
