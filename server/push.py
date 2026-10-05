@@ -18,7 +18,18 @@ import os, json, base64, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 VAPID_PATH = os.path.join(HERE, "data", "vapid.json")
-SUBJECT = os.environ.get("NS_VAPID_SUBJECT", "mailto:admin@namma-santhai.example")
+# pywebpush mis-parses a PEM *string* as DER ("ASN.1 parsing error: invalid
+# length") and every push fails. It handles a PEM *file path* correctly, so we
+# keep the key on disk and hand over the path.
+PEM_PATH = os.path.join(HERE, "data", "vapid_private.pem")
+# The VAPID 'sub' claim is the admin contact the PUSH SERVICE can reach - it is
+# never shown to users. Two constraints bit here:
+#   * py_vapid insists it is a mailto: link (an https:// URL is rejected
+#     outright with "Missing 'sub' from claims").
+#   * Apple returns 403 for a bogus domain, so the reserved .example TLD fails
+#     even though FCM accepted it.
+# Override with NS_VAPID_SUBJECT once the client has their own address.
+SUBJECT = os.environ.get("NS_VAPID_SUBJECT", "mailto:terencecamilleripesci@gmail.com")
 
 _keys = None
 try:
@@ -45,6 +56,22 @@ def public_key():
     return keys().get("public_key", "")
 
 
+def _ensure_pem_file():
+    """Materialise the PEM on disk; pywebpush only parses it reliably by path."""
+    if os.path.exists(PEM_PATH):
+        return PEM_PATH
+    pem = keys().get("pem")
+    if not pem:
+        return None
+    try:
+        with open(PEM_PATH, "w") as fh:
+            fh.write(pem)
+        os.chmod(PEM_PATH, 0o600)
+        return PEM_PATH
+    except Exception:                                # noqa: BLE001
+        return None
+
+
 def enabled():
     return bool(AVAILABLE and keys().get("pem"))
 
@@ -64,7 +91,7 @@ def send(subscription, title, body, url=None, tag=None):
         webpush(
             subscription_info=subscription,
             data=payload,
-            vapid_private_key=keys()["pem"],
+            vapid_private_key=_ensure_pem_file(),
             vapid_claims={"sub": SUBJECT, "exp": int(time.time()) + 12 * 3600},
             ttl=86400,
         )
@@ -75,4 +102,6 @@ def send(subscription, title, body, url=None, tag=None):
             return False, "gone"                     # expired/unsubscribed
         return False, "push failed: %s" % code
     except Exception as e:                           # noqa: BLE001
-        return False, "push error: %s" % e.__class__.__name__
+        # Keep the message: "push error: ValueError" hid a PEM parsing bug that
+        # silently broke every single push.
+        return False, "push error: %s: %s" % (e.__class__.__name__, str(e)[:120])
