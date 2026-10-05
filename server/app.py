@@ -480,6 +480,8 @@ def create_listing():
          NEW_STATUS, now, now, now if NEW_STATUS == "active" else None))
     lid = cur.lastrowid
     save_photos(con, lid, g.user["id"], d.get("photos") or [])
+    if NEW_STATUS == "active":
+        notify_new_listing(con, lid, g.user["id"], str(d["category"]), str(d["title"]))
     con.commit()
     r = con.execute("SELECT * FROM listings WHERE id=?", (lid,)).fetchone()
     out = listing_json(con, r)
@@ -577,6 +579,18 @@ def admin_pending():
     return jsonify({"listings": out})
 
 
+def notify_new_listing(con, lid, owner_id, category, title):
+    """Alert everyone who asked for this category - except the person posting."""
+    rows = con.execute(
+        "SELECT id, alert_cats FROM users WHERE id!=? AND status='active'", (owner_id,)
+    ).fetchall()
+    for u in rows:
+        cats = [c for c in (u["alert_cats"] or "").split(",") if c]
+        if category in cats:
+            notify(con, u["id"], "nearby", listing_id=lid,
+                   payload={"title": title, "category": category})
+
+
 def notify(con, user_id, typ, listing_id=None, conv_id=None, payload=None):
     con.execute("INSERT INTO notifications(user_id,type,listing_id,conv_id,payload,created_at) "
                 "VALUES(?,?,?,?,?,?)",
@@ -603,6 +617,8 @@ def approve(lid):
         con.execute("INSERT INTO approval_audit(admin_id,listing_id,decision,reason,created_at) "
                     "VALUES(?,?,'approve','',?)", (g.user["id"], lid, D.now()))
         notify(con, r["owner_id"], "approved", listing_id=lid, payload={"title": r["title"]})
+        if MODERATION == "pre":
+            notify_new_listing(con, lid, r["owner_id"], r["category"], r["title"])
         con.commit()
     except sqlite3.OperationalError:
         con.rollback(); con.close(); return err("busy", "Try again", 409)
