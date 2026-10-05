@@ -60,7 +60,9 @@
       notifTestSent:"Test push sent - close the app and it still arrives",
       notifTestNoDevice:"This device is not registered for push yet",
       adminByNumber:"Granted by your phone number, not a switch.",
-      photoFailed:"Could not read that photo. Try another.",
+      photoFailed:"Could not read that photo. Try another, or switch the camera to JPEG.",
+      photoSomeFailed:"Some photos could not be read and were skipped.",
+      photoWorking:"Preparing photo…",
       noOtpNote:"Trial: signing in with a number only. No code is sent and the number is not verified.",
       mobileLabel:"Mobile number", sendOtp:"Send OTP", or:"OR", google:"Continue with Google",
       privacyNote:"Your number is private. Buyers never see it unless you turn on contact.",
@@ -153,6 +155,8 @@
       notifTestNoDevice:"இந்த சாதனம் இன்னும் பதிவு செய்யப்படவில்லை",
       adminByNumber:"உங்கள் தொலைபேசி எண் மூலம் வழங்கப்படுகிறது.",
       photoFailed:"படத்தைப் படிக்க முடியவில்லை. வேறு ஒன்றை முயற்சிக்கவும்.",
+      photoSomeFailed:"சில படங்களைப் படிக்க முடியவில்லை.",
+      photoWorking:"படம் தயாராகிறது…",
       enterMobile:"உங்கள் மொபைல் எண்ணை உள்ளிடவும்", otpSub:"உங்கள் எண்ணைச் சரிபார்க்க 6-இலக்க குறியீடு அனுப்புவோம்.",
       mobileLabel:"மொபைல் எண்", sendOtp:"OTP அனுப்பு", or:"அல்லது", google:"Google மூலம் தொடரவும்",
       privacyNote:"உங்கள் எண் தனிப்பட்டது. தொடர்பை இயக்கும் வரை வாங்குபவர்கள் பார்க்க முடியாது.",
@@ -570,7 +574,7 @@
       +'<div class="field" id="f-desc"><label>'+t("description")+' <span class="req">*</span></label><textarea class="input" id="d-desc" rows="3" placeholder="'+t("descPh")+'">'+esc(d.desc)+'</textarea><div class="err-msg">'+t("errDesc")+'</div></div>'
       +'<div class="field" id="f-photo"><label>'+t("photos")+(isWanted?"":' <span class="req">*</span>')+' <span class="hint">('+(isWanted?t("wantedPhotoHint"):t("photoHint"))+')</span></label>'
       +'<div class="photo-add" id="photo-add">'+photoSlots+'</div>'
-      +'<input type="file" id="photo-file" accept="image/*" multiple hidden>'
+      +'<input type="file" id="photo-file" accept="image/*,image/heic,image/heif" multiple hidden>'
       +'<div class="err-msg">'+t("errPhoto")+'</div>'
       +'<div class="hint">'+t("photoHint")+'</div></div>'
       +'<div class="field"><label>'+t("video")+'</label><button class="btn btn-outline" id="add-video" style="justify-content:flex-start">🎬 '+t("addVideo")+'</button></div>'
@@ -890,16 +894,23 @@
     document.getElementById("photo-file").addEventListener("change",function(e){
       var files=[].slice.call(e.target.files||[]).slice(0,6-d.photos.length);
       if(!files.length) return;
-      var left=files.length;
+      toast(t("photoWorking"));
+      var left=files.length, added=0, failed=0;
       files.forEach(function(file){
-        if(!/^image\//.test(file.type)){ left--; return; }
         shrink(file, function(dataUrl){
-          if(dataUrl) d.photos.push(dataUrl);
-          else toast(t("photoFailed"));
-          if(--left<=0){ save(); toast(d.photos.length?t("photoAdded"):t("photoFailed"));
-            var sc=app().scrollTop; go("post"); app().scrollTop=sc; }
+          if(dataUrl){ d.photos.push(dataUrl); added++; } else { failed++; }
+          if(--left<=0){
+            save();
+            // Say exactly what happened - a silent no-op is what made this
+            // look like "Android cannot upload".
+            if(added && !failed) toast(t("photoAdded"));
+            else if(added && failed) toast(t("photoSomeFailed"));
+            else toast(t("photoFailed"));
+            var sc=app().scrollTop; go("post"); app().scrollTop=sc;
+          }
         });
       });
+      e.target.value="";                       // allow picking the same file again
     });
     document.querySelectorAll("[data-rmphoto]").forEach(function(b){ b.addEventListener("click",function(){ d.photos.splice(+this.getAttribute("data-rmphoto"),1); save(); var sc=app().scrollTop; go("post"); app().scrollTop=sc; }); });
     document.getElementById("add-video").addEventListener("click",function(){ d.video=true; toast(t("photoAdded")); });
@@ -1316,25 +1327,38 @@
     });
   }
   function shrink(file, cb){
-    var MAX=1280, Q=0.82;
+    // Android camera files are big and often rotated. Chrome applies EXIF
+    // orientation to <img> automatically, so the plain decode path is both
+    // correct and PROVEN here - an attempt to use createImageBitmap instead
+    // hung forever on some builds (never resolved, never rejected) which is
+    // exactly what "cannot upload" looks like to a user.
+    var MAX=1280, Q=0.82, settled=false;
+    function done(v){ if(settled) return; settled=true; cb(v); }
+
+    // Nothing may take longer than this. Reporting a failure beats hanging.
+    var hardStop=setTimeout(function(){ done(null); }, 20000);
+    function finish(v){ clearTimeout(hardStop); done(v); }
+
     var fr=new FileReader();
-    fr.onerror=function(){ cb(null); };
+    fr.onerror=function(){ finish(null); };
     fr.onload=function(){
       var img=new Image();
-      img.onerror=function(){ cb(null); };
+      img.onerror=function(){ finish(null); };          // HEIC/HEIF lands here
       img.onload=function(){
-        var w=img.width, h=img.height;
-        var sc=Math.min(1, MAX/Math.max(w,h));      // never upscale
+        var w=img.naturalWidth||img.width, h=img.naturalHeight||img.height;
+        if(!w||!h) return finish(null);
+        var sc=Math.min(1, MAX/Math.max(w,h));          // never upscale
         var cv=document.createElement("canvas");
-        cv.width=Math.round(w*sc); cv.height=Math.round(h*sc);
+        cv.width=Math.max(1,Math.round(w*sc));
+        cv.height=Math.max(1,Math.round(h*sc));
         try{
           cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
-          cb(cv.toDataURL("image/jpeg",Q));
-        }catch(e){ cb(fr.result); }
+          finish(cv.toDataURL("image/jpeg",Q));
+        }catch(e){ finish(null); }                      // out of memory on huge files
       };
       img.src=fr.result;
     };
-    fr.readAsDataURL(file);
+    try{ fr.readAsDataURL(file); }catch(e){ finish(null); }
   }
 
   function busy(on){ var el=document.getElementById("toast");
