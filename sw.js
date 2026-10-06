@@ -1,11 +1,11 @@
 /* Namma Santhai service worker — NETWORK-FIRST, cache fallback.
    Bump CACHE on every deploy or the phone serves stale files. */
-const CACHE = 'namma-santhai-v18';
+const CACHE = 'namma-santhai-v19';
 const ASSETS = [
   './', './index.html', './css/styles.css', './js/app.js', './js/api.js',
   './manifest.json', './assets/temple.svg', './assets/share-card.jpg', './assets/empty-listings.png', './assets/logo-badge.png',
   './assets/logo-lockup.png', './assets/logo-lockup-light.png',
-  './assets/cat/cat-goat.png', './assets/cat/cat-sheep.png', './assets/cat/cat-cattle.png',
+  './assets/cat/cat-goat.png', './assets/cat/cat-other.png', './assets/cat/cat-bike.png', './assets/cat/cat-seeds.png', './assets/cat/cat-fruit.png', './assets/cat/cat-buffalo.png', './assets/cat/cat-sheep.png', './assets/cat/cat-cattle.png',
   './assets/cat/cat-poultry.png', './assets/cat/cat-feed.png', './assets/cat/cat-produce.png',
   './assets/cat/cat-machinery.png', './assets/cat/cat-vehicle.png',
   './icons/icon-192.png', './icons/icon-512.png'

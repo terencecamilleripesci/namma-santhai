@@ -81,17 +81,17 @@
   var CATS = [
     {k:"goat",art:"assets/cat/cat-goat.png",en:"Goats",ta:"\u0b86\u0b9f\u0bc1"},
     {k:"sheep",art:"assets/cat/cat-sheep.png",en:"Sheep",ta:"\u0b9a\u0bc6\u0bae\u0bcd\u0bae\u0bb1\u0bbf"},
-    {k:"cow",art:"assets/cat/cat-cattle.png",en:"Cattle",ta:"\u0b95\u0bbe\u0bb2\u0bcd\u0ba8\u0b9f\u0bc8"},
-    {k:"buffalo",art:"assets/cat/cat-cattle.png",en:"Buffalo",ta:"\u0b8e\u0bb0\u0bc1\u0bae\u0bc8"},
+    {k:"cow",art:"assets/cat/cat-cattle.png",en:"Cattle",ta:"\u0baa\u0b9a\u0bc1"},
+    {k:"buffalo",art:"assets/cat/cat-buffalo.png",en:"Buffalo",ta:"\u0b8e\u0bb0\u0bc1\u0bae\u0bc8"},
     {k:"poultry",art:"assets/cat/cat-poultry.png",en:"Poultry",ta:"\u0b95\u0bcb\u0bb4\u0bbf"},
     {k:"feed",art:"assets/cat/cat-feed.png",en:"Feed",ta:"\u0ba4\u0bc0\u0bb5\u0ba9\u0bae\u0bcd"},
-    {k:"vegetables",art:"assets/cat/cat-produce.png",en:"Produce",ta:"\u0b95\u0bbe\u0baf\u0bcd\u0b95\u0bb1\u0bbf"},
-    {k:"fruit",art:"assets/cat/cat-produce.png",en:"Fruit",ta:"\u0baa\u0bb4\u0bae\u0bcd"},
-    {k:"seeds",art:"assets/cat/cat-feed.png",en:"Seeds",ta:"\u0bb5\u0bbf\u0ba4\u0bc8"},
+    {k:"vegetables",art:"assets/cat/cat-produce.png",en:"Vegetables",ta:"\u0b95\u0bbe\u0baf\u0bcd\u0b95\u0bb1\u0bbf"},
+    {k:"fruit",art:"assets/cat/cat-fruit.png",en:"Fruit",ta:"\u0baa\u0bb4\u0bae\u0bcd"},
+    {k:"seeds",art:"assets/cat/cat-seeds.png",en:"Seeds",ta:"\u0bb5\u0bbf\u0ba4\u0bc8"},
     {k:"machinery",art:"assets/cat/cat-machinery.png",en:"Machinery",ta:"\u0b87\u0baf\u0ba8\u0bcd\u0ba4\u0bbf\u0bb0\u0bae\u0bcd"},
-    {k:"car",art:"assets/cat/cat-vehicle.png",en:"Vehicles",ta:"\u0bb5\u0bbe\u0b95\u0ba9\u0bae\u0bcd"},
-    {k:"bike",art:"assets/cat/cat-vehicle.png",en:"Bikes",ta:"\u0baa\u0bc8\u0b95\u0bcd"},
-    {k:"other",art:"assets/cat/cat-produce.png",en:"Other",ta:"\u0bae\u0bb1\u0bcd\u0bb1\u0bb5\u0bc8"}
+    {k:"car",art:"assets/cat/cat-vehicle.png",en:"Cars",ta:"\u0b95\u0bbe\u0bb0\u0bcd"},
+    {k:"bike",art:"assets/cat/cat-bike.png",en:"Bikes",ta:"\u0baa\u0bc8\u0b95\u0bcd"},
+    {k:"other",art:"assets/cat/cat-other.png",en:"Other",ta:"\u0bae\u0bb1\u0bcd\u0bb1\u0bb5\u0bc8"}
   ];
   var catMeta = function(k){ for(var i=0;i<CATS.length;i++) if(CATS[i].k===k) return CATS[i]; return CATS[CATS.length-1]; };
 
