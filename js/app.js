@@ -12,18 +12,12 @@
   var LS = "ns_state_v4";
 
   /* ---------- brand mark (inline SVG, no emoji logo) ---------- */
-  var LOGO = '<svg viewBox="0 0 64 64" aria-hidden="true">'
-    + '<rect x="2" y="2" width="60" height="60" rx="16" fill="#15663a"/>'
-    + '<g stroke="#c9992b" stroke-width="2.4" stroke-linecap="round">'
-    + '<line x1="32" y1="9" x2="32" y2="15"/><line x1="20" y1="12" x2="22.5" y2="17"/>'
-    + '<line x1="44" y1="12" x2="41.5" y2="17"/><line x1="12" y1="20" x2="17" y2="23"/>'
-    + '<line x1="52" y1="20" x2="47" y2="23"/></g>'
-    + '<path d="M18 30c-5-4-9-3-11 1 3 6 8 6 12 3z" fill="#f6f1e7"/>'
-    + '<path d="M46 30c5-4 9-3 11 1-3 6-8 6-12 3z" fill="#f6f1e7"/>'
-    + '<path d="M24 26c0-6 4-10 8-10s8 4 8 10c0 8-4 14-8 17-4-3-8-9-8-17z" fill="#f6f1e7"/>'
-    + '<circle cx="28.5" cy="30" r="1.8" fill="#15663a"/><circle cx="35.5" cy="30" r="1.8" fill="#15663a"/>'
-    + '<path d="M30 40c1.2 1.6 3 1.6 4 0" stroke="#15663a" stroke-width="1.6" fill="none" stroke-linecap="round"/>'
-    + '</svg>';
+  // Real brand artwork. The previous hand-authored SVG goat read as a white
+  // blob at small sizes, which is worse than no logo on a trust-led product.
+  var LOGO_BADGE = '<img src="assets/logo-badge.png" alt="" width="104" height="104">';
+  var LOGO_LOCKUP = '<img class="lockup" src="assets/logo-lockup.png" alt="Namma Santhai">';
+  var LOGO_LOCKUP_LIGHT = '<img class="lockup-sm" src="assets/logo-lockup-light.png" alt="Namma Santhai">';
+  var LOGO = LOGO_BADGE;
   /* ============================================================
      ICON SYSTEM — inline SVG only. No emoji anywhere in the UI:
      emoji render differently per device, cannot be themed, and look
@@ -81,7 +75,7 @@
     return '<svg class="ic'+(cls?" "+cls:"")+'" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+p+'</svg>';
   }
 
-  var BRAND_SM = '<span class="brand-sm">' + LOGO + '<span>NAMMA SANTHAI</span></span>';
+  var BRAND_SM = LOGO_LOCKUP_LIGHT;
 
   /* ---------- categories ---------- */
   var CATS = [
@@ -413,9 +407,12 @@
   /* ---------- appbar + nav ---------- */
   function bar(opts){
     opts=opts||{};
-    var left = opts.back
-      ? '<button class="iconbtn" data-go="'+opts.back+'" aria-label="Back">'+I("back")+'</button>'
-      : (opts.brand ? '<span class="brand-sm">'+LOGO+'<span>NAMMA SANTHAI</span></span>' : "");
+    // back and brand are not mutually exclusive: keeping the lockup visible
+    // during sign-in is reassurance on a screen asking for a phone number.
+    var left = (opts.back
+        ? '<button class="iconbtn" data-go="'+opts.back+'" aria-label="Back">'+I("back")+'</button>'
+        : "")
+      + (opts.brand ? LOGO_LOCKUP_LIGHT : "");
     var mid = opts.title
       ? '<div><div class="appbar-title">'+opts.title+'</div>'
         +(opts.sub?'<div class="appbar-sub">'+opts.sub+'</div>':"")+'</div>' : "";
@@ -462,11 +459,10 @@
   var S = {};
 
   S.welcome=function(){
-    return '<section class="screen"><div class="pad stagger" style="margin:auto 0">'
+    return '<section class="screen welcome"><div class="pad stagger" style="margin:auto 0">'
       +'<div class="brand">'
-      +'<div class="logo-badge">'+LOGO+'</div>'
-      +'<div class="name">NAMMA SANTHAI</div>'
-      +'<div class="name-ta">\u0ba8\u0bae\u0bcd\u0bae \u0b9a\u0ba8\u0bcd\u0ba4\u0bc8</div>'
+      +'<div class="logo-halo"><div class="logo-badge">'+LOGO_BADGE+'</div></div>'
+      +LOGO_LOCKUP
       +'<div class="rule"></div>'
       +'<div class="tagline">'+t("tagline")+'</div></div>'
       +'<p class="sub center" style="margin:18px 2px 20px">'+t("welcomeBlurb")+'</p>'
@@ -1363,9 +1359,9 @@
     document.getElementById("na-title").textContent=t("notifAskTitle");
     document.getElementById("na-sub").textContent=t("notifAskSub");
     document.getElementById("notif-allow").textContent=t("notifAllow");
-    bar.hidden=false;
+    bar.hidden=false; syncPromptClass();
   }
-  function hideNotifCard(){ var b=document.getElementById("notif-ask"); if(b) b.hidden=true; }
+  function hideNotifCard(){ var b=document.getElementById("notif-ask"); if(b) b.hidden=true; syncPromptClass(); }
 
   document.addEventListener("click",function(e){
     if(!e.target) return;
@@ -1471,7 +1467,12 @@
   }
   function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent)
     || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1); } // iPadOS 13+
-  function hideInstallBar(){ var b=document.getElementById("install-bar"); if(b) b.hidden=true; }
+  function syncPromptClass(){
+    var ph=document.querySelector(".phone"); if(!ph) return;
+    var ib=document.getElementById("install-bar"), nb=document.getElementById("notif-ask");
+    ph.classList.toggle("has-prompt", (ib && !ib.hidden) || (nb && !nb.hidden));
+  }
+  function hideInstallBar(){ var b=document.getElementById("install-bar"); if(b) b.hidden=true; syncPromptClass(); }
   // Once installed we remember it, so the prompt never returns on this device.
   function markInstalled(){ try{ localStorage.setItem("ns_installed","1"); }catch(e){} hideInstallBar(); }
   function suppressed(){

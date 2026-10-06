@@ -623,3 +623,73 @@ select.input{appearance:none;padding-right:40px;
 }
 
 [hidden]{display:none!important;}
+
+/* ============================================================================
+   BRAND ARTWORK + EYE CANDY
+   Real logo artwork replaces the old inline SVG. Effects are deliberately
+   restrained: one hero moment on welcome, subtle depth elsewhere, and every
+   animation still dies under prefers-reduced-motion.
+   ========================================================================= */
+
+/* app-bar lockup */
+.lockup-sm{height:30px;width:auto;display:block;}
+@media (max-width:360px){.lockup-sm{height:26px;}}
+
+/* welcome lockup */
+.lockup{width:min(252px,72%);height:auto;display:block;margin:var(--s4) auto 0;
+  animation:lockup-in 620ms var(--ease-out) 140ms both;}
+@keyframes lockup-in{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+
+/* badge + halo: the one hero moment */
+.logo-halo{position:relative;display:flex;align-items:center;justify-content:center;
+  width:150px;height:150px;margin:0 auto;}
+.logo-halo::before{content:"";position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle,rgba(201,153,43,.30) 0%,rgba(201,153,43,.10) 46%,transparent 68%);
+  animation:halo 3.4s var(--ease-out) infinite;}
+@keyframes halo{0%,100%{transform:scale(.94);opacity:.75;}50%{transform:scale(1.06);opacity:1;}}
+.logo-badge{position:relative;width:104px;height:104px;border-radius:30px;overflow:hidden;
+  background:var(--green);box-shadow:0 10px 26px rgba(15,79,44,.34),0 2px 6px rgba(15,79,44,.2);
+  animation:logo-in 640ms var(--spring) both;}
+.logo-badge img{width:100%;height:100%;object-fit:cover;display:block;}
+/* a single slow shine sweep - premium, not a disco */
+.logo-badge::after{content:"";position:absolute;top:0;left:-120%;width:60%;height:100%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.34),transparent);
+  transform:skewX(-18deg);animation:shine 4.6s ease-in-out 1.1s infinite;}
+@keyframes shine{0%,62%{left:-120%;}82%,100%{left:130%;}}
+
+/* welcome backdrop: quiet depth behind the brand */
+.screen.welcome{background:
+  radial-gradient(520px 300px at 50% 12%,rgba(201,153,43,.16),transparent 70%),
+  radial-gradient(640px 420px at 50% 104%,rgba(21,102,58,.14),transparent 72%),
+  var(--bg);}
+
+/* language cards: lift the chosen one */
+.lang-choice button{box-shadow:var(--e1);}
+.lang-choice button.active{box-shadow:0 6px 16px rgba(21,102,58,.16);transform:translateY(-2px);}
+
+/* primary button: subtle depth + press */
+.btn-primary{background:linear-gradient(170deg,var(--green-600),var(--green));}
+.btn-primary:active{background:var(--green-800);}
+
+/* app bar: soft sheen so the brand sits on something */
+.appbar{background:
+  radial-gradient(420px 120px at 18% -40%,rgba(201,153,43,.22),transparent 70%),
+  linear-gradient(180deg,var(--green-800),var(--green));}
+
+/* cards: warmer press + crisper media */
+.card .thumb::after{content:"";position:absolute;inset:0;pointer-events:none;
+  box-shadow:inset 0 -36px 34px -30px rgba(11,42,26,.28);}
+
+/* category tiles: gentle rise on the active one */
+.cat.active .cat-art{box-shadow:0 6px 14px rgba(21,102,58,.2);}
+
+/* FAB: a quiet ring so it reads as the primary action */
+.navbtn.sell .fab{box-shadow:0 8px 18px rgba(15,79,44,.32),0 0 0 4px rgba(21,102,58,.08);}
+
+@media (prefers-reduced-motion:reduce){
+  .logo-halo::before,.logo-badge::after{animation:none!important;}
+  .logo-badge::after{display:none;}
+}
+
+/* toast must clear a visible prompt bar instead of sitting on top of it */
+.phone.has-prompt .toast{bottom:168px;}
