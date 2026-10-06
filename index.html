@@ -37,7 +37,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Noto+Sans:wght@400;600;700;800&family=Noto+Sans+Tamil:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/styles.css?v=14">
+<link rel="stylesheet" href="css/styles.css?v=15">
 </head>
 <body>
 
@@ -53,24 +53,24 @@
 
   <nav class="bottomnav" id="bottomnav" hidden aria-label="Primary"></nav>
 
-  <div class="install-bar" id="install-bar" hidden>
-    <span class="ib-icon" aria-hidden="true">📲</span>
-    <span class="ib-text"><b id="ib-title">Install Namma Santhai</b><br><span id="ib-sub">Add it to your home screen</span></span>
-    <button class="btn-primary ib-btn" id="install-btn">Install</button>
-    <button class="ib-x" id="install-x" aria-label="Dismiss">✕</button>
+  <div class="prompt-bar" id="install-bar" hidden>
+    <span class="pb-ic" id="ib-icon" aria-hidden="true"></span>
+    <span class="pb-t"><b id="ib-title">Install Namma Santhai</b><span id="ib-sub">Add it to your home screen</span></span>
+    <button class="btn btn-primary sm" id="install-btn">Install</button>
+    <button class="pb-x" id="install-x" aria-label="Dismiss"></button>
   </div>
 
-  <div class="install-bar" id="notif-ask" hidden style="bottom:92px">
-    <span class="ib-icon" aria-hidden="true">🔔</span>
-    <span class="ib-text"><b id="na-title">Turn on notifications</b><br><span id="na-sub"></span></span>
-    <button class="btn-primary ib-btn" id="notif-allow">Allow</button>
-    <button class="ib-x" id="notif-later" aria-label="Not now">✕</button>
+  <div class="prompt-bar" id="notif-ask" hidden>
+    <span class="pb-ic" id="na-icon" aria-hidden="true"></span>
+    <span class="pb-t"><b id="na-title">Turn on notifications</b><span id="na-sub"></span></span>
+    <button class="btn btn-primary sm" id="notif-allow">Allow</button>
+    <button class="pb-x" id="notif-later" aria-label="Not now"></button>
   </div>
 
   <div class="toast" id="toast" role="status"></div>
 </div>
 
-<script src="js/api.js?v=14"></script>
-<script src="js/app.js?v=14"></script>
+<script src="js/api.js?v=15"></script>
+<script src="js/app.js?v=15"></script>
 </body>
 </html>
