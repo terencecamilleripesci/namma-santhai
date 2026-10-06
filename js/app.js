@@ -514,7 +514,7 @@
   S.profile=function(){
     return '<section class="screen active">'+bar({back:"otp",brand:true})+'<div class="pad">'
       +'<h1 class="h1">'+t("completeProfile")+'</h1><p class="sub">'+t("profileSub")+'</p>'
-      +'<div class="center" style="margin-bottom:18px"><div class="avatar" style="width:84px;height:84px;margin:0 auto;font-size:30px">＋</div>'
+      +'<div class="center" style="margin-bottom:18px"><div class="avatar" style="width:84px;height:84px;margin:0 auto">'+I("camera","ic-lg")+'</div>'
       +'<div class="hint">'+t("addPhoto")+'</div></div>'
       +'<div class="field" id="f-name"><label>'+t("yourName")+' <span class="req">*</span></label>'
       +'<div class="input-icon">"+I("user","ic-sm")+"<input class="input" id="pname" placeholder="Ramesh Kumar" value="'+esc(state.user.name)+'"></div>'
@@ -700,9 +700,9 @@
   S.post=function(){
     if(!state.draft) state.draft=draftNew();
     var d=state.draft;
-    var catOpts=CATS.map(function(c){return '<option value="'+c.k+'"'+(c.k===d.category?" selected":"")+'>'+c.e+' '+cat(c.k)+'</option>';}).join("");
+    var catOpts=CATS.map(function(c){return '<option value="'+c.k+'"'+(c.k===d.category?" selected":"")+'>'+cat(c.k)+'</option>';}).join("");
     var photoSlots=d.photos.map(function(ph,i){return '<button class="photo-slot filled" data-rmphoto="'+i+'"><img src="'+ph+'" style="width:100%;height:100%;object-fit:cover" alt=""></button>';}).join("")
-      +'<button class="photo-slot" id="add-photo">＋</button>';
+      +'<button class="photo-slot" id="add-photo" aria-label="'+t("addPhotoBtn")+'">'+I("camera")+'</button>';
     var isWanted=d.type==="wanted";
     return '<section class="screen active">'+bar({back:"home",brand:true})+'<div class="pad">'
       +'<h1 class="h1" style="font-size:22px">'+(d.editId?t("edit"):t("postAd"))+'</h1>'
