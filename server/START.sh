@@ -13,10 +13,13 @@ export NS_HOST="${NS_HOST:-127.0.0.1}"
 # gsm  = hand to the existing sms_queue seam (ONLY when explicitly enabled)
 export NS_OTP_MODE="${NS_OTP_MODE:-demo}"
 
-# Admin accounts: comma separated 10-digit numbers that get role=admin on signup.
+# Private config (admin number + admin secret). Gitignored, never committed.
+[ -f admin.env ] && set -a && . ./admin.env && set +a
+
+# Admin accounts: comma separated numbers. They ALSO need NS_ADMIN_SECRET.
 # Signing in with one of these grants the approval queue. Role is enforced
 # server-side, so a normal user cannot reach it by URL or API.
-export NS_ADMIN_PHONES="${NS_ADMIN_PHONES:-9843575561}"
+export NS_ADMIN_PHONES="${NS_ADMIN_PHONES:-}"
 
 if [ -f server.pid ] && kill -0 "$(cat server.pid)" 2>/dev/null; then
   echo "already running (pid $(cat server.pid)) on port $PORT"

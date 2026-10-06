@@ -47,20 +47,29 @@ written anywhere else on the Pi.
 | Log | `server/server.log` |
 
 ### Admin account
-**Admin number: `9843575561`** - signing in with it gives the approval queue.
-It is the built-in default in `START.sh`, so no extra flags are needed.
 
-Admin is **server-enforced by role**, not a hidden button: a normal account
-gets `403` on the queue and on approve/reject, by URL or by API. Verified.
+**The admin number is NOT written down in this repo, and must never be.**
+Sign-in is a phone number with no verification, so a phone number is not a
+credential: anyone who reads it can become that user. An admin number WAS
+committed here once and had to be revoked - do not reintroduce it.
 
-To use different / extra admins:
+Admin now needs TWO things: the number must be in `NS_ADMIN_PHONES`, AND the
+sign-in must present `NS_ADMIN_SECRET`. Without the secret the account signs in
+as a normal user. If no secret is configured, **nobody** gets admin - it fails
+closed on purpose.
 
-```bash
-NS_ADMIN_PHONES="9843575561,9888888888" bash server/START.sh
+Put both in `server/admin.env`, which is gitignored:
+
+```
+NS_ADMIN_PHONES=<the admin mobile number>
+NS_ADMIN_SECRET=<a long random string>
 ```
 
-> The role is assigned when that number **first signs in**. If you change the
-> list after an account already exists, wipe (`bash STOP.sh --wipe`) first.
+Then `bash server/START.sh` (it sources that file if present).
+
+> This is a stop-gap for the trial. The real fix is switching `NS_AUTH_MODE=otp`
+> with a real Indian SMS provider - the OTP code is already written and tested.
+> See PRODUCTION-AUDIT.md S1.
 
 ---
 
@@ -157,7 +166,7 @@ never raw HTML, so the client can translate them.
 |---|---|
 | **Give the client this** | `https://terencecamilleripesci.github.io/namma-santhai/?api=https://raspberrypi.silverside-tench.ts.net:8443/nsapi` |
 | Backend (public) | `https://raspberrypi.silverside-tench.ts.net:8443/nsapi` |
-| Admin sign-in | **9843575561** |
+| Admin sign-in | see `server/admin.env` (not in this repo) |
 
 The `?api=` part matters. Without it the app runs offline on the phone and
 nothing is shared between people.

@@ -24,7 +24,8 @@ Type=simple
 WorkingDirectory=$DIR
 Environment=NS_PORT=8105
 Environment=NS_HOST=127.0.0.1
-Environment=NS_ADMIN_PHONES=9843575561
+# admin number + secret come from server/admin.env (gitignored)
+EnvironmentFile=-%h/webclients/namma-santhai/server/admin.env
 ExecStart=/usr/bin/python3 $DIR/app.py
 Restart=always
 RestartSec=5

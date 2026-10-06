@@ -3,3 +3,4 @@ backups/
 *.log
 server.pid
 __pycache__/
+admin.env

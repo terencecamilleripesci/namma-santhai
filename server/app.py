@@ -34,6 +34,14 @@ ADMIN_PHONES = [p.strip() for p in os.environ.get("NS_ADMIN_PHONES", "").split("
 #   otp            -> the full code flow (kept intact, see request_otp/verify).
 AUTH_MODE = os.environ.get("NS_AUTH_MODE", "open").strip().lower()
 
+# ADMIN SECOND FACTOR.
+# Sign-in is a phone number with no verification, so a phone number is NOT a
+# credential - anyone who learns it can become that user. An admin number was
+# also committed to a PUBLIC repo, which made admin takeover a copy-paste away.
+# Admin now additionally requires this secret, supplied at sign-in. Without it
+# the account signs in as a NORMAL user, even if the number is on the list.
+ADMIN_SECRET = os.environ.get("NS_ADMIN_SECRET", "").strip()
+
 # MODERATION
 #   post  (DEFAULT) -> a new ad goes LIVE immediately; admins moderate after the
 #                      fact and can still reject/remove it. This is how real
@@ -196,7 +204,7 @@ def verify_otp():
     u = con.execute("SELECT * FROM users WHERE phone=?", (phone,)).fetchone()
     now = D.now()
     if not u:
-        role = "admin" if phone in ADMIN_PHONES else "user"
+        role = "user"
         cur = con.execute(
             "INSERT INTO users(phone,phone_verified,role,created_at,last_seen,locality) "
             "VALUES(?,?,?,?,?,?)", (phone, 1, role, now, now, ""))
@@ -214,12 +222,19 @@ def verify_otp():
     return jsonify({"token": tok, "user": public_user(user, self_view=True)})
 
 
-def issue_session(con, phone, name=None):
+def admin_ok(secret):
+    """No secret configured -> nobody can hold admin. Fail closed, not open."""
+    if not ADMIN_SECRET:
+        return False
+    return bool(secret) and secrets.compare_digest(str(secret), ADMIN_SECRET)
+
+
+def issue_session(con, phone, name=None, admin_secret=None):
     """Create-or-fetch the user and hand back a session token."""
     now = D.now()
     u = con.execute("SELECT * FROM users WHERE phone=?", (phone,)).fetchone()
     if not u:
-        role = "admin" if phone in ADMIN_PHONES else "user"
+        role = "admin" if (phone in ADMIN_PHONES and admin_ok(admin_secret)) else "user"
         cur = con.execute(
             "INSERT INTO users(phone,phone_verified,name,role,created_at,last_seen,locality) "
             "VALUES(?,?,?,?,?,?,?)",
@@ -227,6 +242,11 @@ def issue_session(con, phone, name=None):
         uid = cur.lastrowid
     else:
         uid = u["id"]
+        # Re-evaluate the role every sign-in: an existing admin row must not
+        # keep its powers for someone who cannot present the secret.
+        want = "admin" if (phone in ADMIN_PHONES and admin_ok(admin_secret)) else "user"
+        if u["role"] != want:
+            con.execute("UPDATE users SET role=? WHERE id=?", (want, uid))
         if name and not (u["name"] or "").strip():
             con.execute("UPDATE users SET name=? WHERE id=?", ((name or "")[:80], uid))
         con.execute("UPDATE users SET last_seen=? WHERE id=?", (now, uid))
@@ -253,7 +273,7 @@ def signin():
     if not PHONE_RE.match(phone):
         return err("bad_phone", "Enter a valid 10-digit Indian mobile number")
     con = D.connect()
-    tok, user = issue_session(con, phone, name)
+    tok, user = issue_session(con, phone, name, d.get("admin_secret"))
     con.close()
     return jsonify({"token": tok, "user": public_user(user, self_view=True),
                     "verified": False, "auth_mode": "open"})
@@ -870,6 +890,7 @@ def health():
     con.close()
     return jsonify({"ok": True, "trial": True, "counts": counts,
                     "auth_mode": AUTH_MODE, "moderation": MODERATION,
+                    "admin_secret_set": bool(ADMIN_SECRET),
                     "otp_required": AUTH_MODE != "open",
                     # With auth_mode=open nothing can send an SMS at all.
                     "sms": {"disabled": True} if AUTH_MODE == "open" else SMS.status()})
