@@ -79,6 +79,8 @@ window.NS_API = (function () {
     me: function () { return req("GET", "/api/me"); },
     updateMe: function (patch) { return req("PATCH", "/api/me", patch); },
     logout: function () { return req("POST", "/api/auth/logout"); },
+    deleteAccount: function () { return req("DELETE", "/api/me"); },
+    exportMe: function () { return req("GET", "/api/me/export"); },
 
     listings: function (params) {
       var qs = Object.keys(params || {}).filter(function (k) { return params[k] !== "" && params[k] != null; })

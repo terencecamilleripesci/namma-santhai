@@ -342,6 +342,12 @@ def update_me():
 
 @app.get("/api/users/<int:uid>")
 def public_profile(uid):
+    # Was unauthenticated, so one scripted loop over ids harvested every
+    # consenting seller's mobile number. Require a session; the number is still
+    # only returned when that seller opted in to Call/WhatsApp.
+    viewer = current_user()
+    if not viewer:
+        return err("unauthorized", "Sign in to view seller profiles", 401)
     con = D.connect()
     u = con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
     if not u:
@@ -381,8 +387,14 @@ def list_listings():
     cat = request.args.get("category", "").strip()
     q = request.args.get("q", "").strip()
     typ = request.args.get("type", "").strip()
-    limit = min(int(request.args.get("limit", 50)), 100)
-    offset = int(request.args.get("offset", 0))
+    # limit=-1 or a huge offset used to dump the whole table: min() alone does
+    # not stop a NEGATIVE limit, and SQLite treats LIMIT -1 as "no limit".
+    def _int(name, default, lo, hi):
+        try: v = int(request.args.get(name, default))
+        except (TypeError, ValueError): v = default
+        return max(lo, min(v, hi))
+    limit = _int("limit", 50, 1, 100)
+    offset = _int("offset", 0, 0, 10000)
     sql = "SELECT * FROM listings WHERE status='active'"
     args = []
     if cat and cat != "all":
@@ -880,6 +892,65 @@ def push_test():
     n = push_to_user(g.user["id"], "Namma Santhai", "Push is working on this device.", "./")
     return jsonify({"ok": n > 0, "sent_to_devices": n,
                     "note": "accepted by the push service; not a delivery receipt"})
+
+
+@app.delete("/api/me")
+@require_auth
+def delete_me():
+    """Really delete the account and everything attached to it (DPDP erasure).
+
+    Previously the UI offered 'Delete my account' and the server had no such
+    route - it only cleared localStorage, so the account and all its data
+    stayed on the server. That is a lie told to the user and a legal problem.
+    """
+    uid = g.user["id"]
+    con = D.connect()
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        # remove uploaded files from disk, not just their rows
+        for m in con.execute("SELECT key FROM media WHERE owner_id=?", (uid,)).fetchall():
+            try:
+                os.remove(os.path.join(D.UPLOADS, m["key"]))
+            except OSError:
+                pass
+        convs = [r["id"] for r in con.execute(
+            "SELECT id FROM conversations WHERE buyer_id=? OR seller_id=?", (uid, uid))]
+        if convs:
+            qs = ",".join("?" * len(convs))
+            con.execute("DELETE FROM messages WHERE conv_id IN (%s)" % qs, convs)
+            con.execute("DELETE FROM conversations WHERE id IN (%s)" % qs, convs)
+        con.execute("DELETE FROM messages WHERE sender_id=?", (uid,))
+        con.execute("DELETE FROM media WHERE owner_id=?", (uid,))
+        con.execute("DELETE FROM listings WHERE owner_id=?", (uid,))
+        con.execute("DELETE FROM notifications WHERE user_id=?", (uid,))
+        con.execute("DELETE FROM push_subs WHERE user_id=?", (uid,))
+        con.execute("DELETE FROM sessions WHERE user_id=?", (uid,))
+        con.execute("DELETE FROM otps WHERE phone=?", (g.user["phone"],))
+        con.execute("DELETE FROM users WHERE id=?", (uid,))
+        con.commit()
+    except Exception:                                    # noqa: BLE001
+        con.rollback(); con.close()
+        return err("delete_failed", "Could not delete the account", 500)
+    con.close()
+    return jsonify({"ok": True, "deleted": True})
+
+
+@app.get("/api/me/export")
+@require_auth
+def export_me():
+    """DPDP access right: hand the user everything held about them."""
+    uid = g.user["id"]
+    con = D.connect()
+    out = {"account": public_user(g.user, self_view=True), "listings": [], "messages": [], "notifications": []}
+    for r in con.execute("SELECT * FROM listings WHERE owner_id=?", (uid,)):
+        out["listings"].append(listing_json(con, r))
+    for m in con.execute(
+        "SELECT m.body, m.created_at FROM messages m WHERE m.sender_id=? ORDER BY m.created_at", (uid,)):
+        out["messages"].append({"body": m["body"], "at": m["created_at"]})
+    for n in con.execute("SELECT type,payload,created_at FROM notifications WHERE user_id=?", (uid,)):
+        out["notifications"].append({"type": n["type"], "payload": n["payload"], "at": n["created_at"]})
+    con.close()
+    return jsonify(out)
 
 
 @app.get("/api/health")

@@ -115,6 +115,8 @@
       results:"results", tryOther:"Try another category or search word.",
       noChatsSub:"When you message a seller it will appear here.",
       totalAds:"ads",
+      confirmDelete:"Delete your account and every listing, photo and message? This cannot be undone.",
+      accountDeleted:"Account deleted",
       favourites:"Saved listings", noFavs:"You have not saved anything yet",
       deals:"Deals near you", dealsSub:"New animals listed close to you today.",
       viewDeals:"See what is new", later:"Later",
@@ -1209,7 +1211,20 @@
       if(LIVE){ API.logout().catch(function(){}); API.setToken(null); LIVE=false; }
       state.onboarded=false; save(); _go("welcome"); });
     var rep=document.getElementById("replay"); rep&&rep.addEventListener("click",function(){ go("welcome"); });
-    var del=document.getElementById("del-account"); del&&del.addEventListener("click",function(){ localStorage.removeItem(LS); load(); toast(t("resetToast")); go("welcome"); });
+    var del=document.getElementById("del-account");
+    del&&del.addEventListener("click",function(){
+      if(!window.confirm(t("confirmDelete"))) return;
+      if(LIVE){
+        API.deleteAccount().then(function(){
+          API.setToken(null); LIVE=false;
+          try{ localStorage.removeItem(LS); }catch(e){}
+          load(); toast(t("accountDeleted")); _go("welcome");
+        }).catch(apiFail);
+        return;
+      }
+      try{ localStorage.removeItem(LS); }catch(e){}
+      load(); toast(t("resetToast")); _go("welcome");
+    });
     var lh=document.getElementById("loc-help"); lh&&lh.addEventListener("click",function(){ toast(t("locDeniedHelp")); });
   }
 
