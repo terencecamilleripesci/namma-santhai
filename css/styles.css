@@ -39,24 +39,20 @@
 html,body{margin:0;padding:0;}
 body{
   font-family:var(--font);color:var(--ink);font-size:16px;line-height:1.5;
-  background:radial-gradient(1100px 520px at 50% -12%,#2b6e48 0%,#17492d 55%,#0d2e1d 100%);
-  min-height:100dvh;display:flex;flex-direction:column;align-items:center;
-  padding:20px 12px 28px;-webkit-font-smoothing:antialiased;
+  background:var(--bg);margin:0;min-height:100dvh;
+  -webkit-font-smoothing:antialiased;overscroll-behavior-y:none;
 }
 html[lang="ta"] body{font-family:"Noto Sans Tamil",var(--font);}
 
-.stage-hint{color:#cfe6d8;font-size:12.5px;line-height:1.5;text-align:center;
-  margin:0 0 14px;max-width:var(--phone-w);opacity:.9;}
-.stage-hint b{color:#fff;}
-
-/* ---------- phone shell ---------- */
-.phone{width:var(--phone-w);max-width:100%;height:min(880px,calc(100dvh - 76px));
-  background:var(--bg);border-radius:40px;
-  box-shadow:var(--e4),0 0 0 10px #0b2c1b,0 0 0 11px #061a10;
-  overflow:hidden;position:relative;display:flex;flex-direction:column;}
-.statusbar{height:36px;flex:0 0 36px;display:flex;align-items:center;justify-content:space-between;
-  padding:0 var(--s5);font-size:12.5px;font-weight:600;color:#fff;background:var(--green-800);}
-.statusbar .sb-right{display:flex;gap:6px;align-items:center;font-size:11.5px;opacity:.9;}
+/* ---------- app shell ----------
+   No painted bezel and no fake status bar: this IS the application, not a
+   picture of a phone. It fills the viewport and respects the notch and the
+   gesture bar. On a wide screen it simply centres - it never pretends to be
+   hardware. */
+.app{
+  width:100%;height:100dvh;background:var(--bg);
+  overflow:hidden;position:relative;display:flex;flex-direction:column;
+}
 .viewport{flex:1 1 auto;position:relative;overflow:hidden;}
 
 .screen{position:absolute;inset:0;display:flex;flex-direction:column;
@@ -74,7 +70,8 @@ html[lang="ta"] body{font-family:"Noto Sans Tamil",var(--font);}
 /* ---------- app bar ---------- */
 .appbar{flex:0 0 auto;position:sticky;top:0;z-index:20;color:#fff;
   background:linear-gradient(180deg,var(--green-800),var(--green));
-  display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s4);
+  display:flex;align-items:center;gap:var(--s3);
+  padding:calc(var(--s3) + env(safe-area-inset-top)) var(--s4) var(--s3);
   min-height:58px;box-shadow:var(--e2);}
 .appbar .spacer{flex:1;}
 .appbar-title{font-weight:700;font-size:16.5px;}
@@ -603,10 +600,11 @@ select.input{appearance:none;padding-right:40px;
   padding:4px 10px;border-radius:var(--r-pill);}
 
 /* ---------- responsive ---------- */
-@media (max-width:420px){
-  body{padding:0;}
-  .phone{border-radius:0;height:100dvh;box-shadow:none;max-width:100%;width:100%;}
-  .stage-hint{display:none;}
+@media (min-width:560px){
+  /* Desktop just centres the column and tints the surround - no bezel,
+     nothing imitating a handset. */
+  body{background:#e9e2d4;display:flex;justify-content:center;}
+  .app{max-width:468px;box-shadow:0 0 0 1px rgba(18,45,30,.07),0 10px 36px rgba(18,45,30,.10);}
 }
 @media (max-width:360px){
   :root{--s5:16px;}
@@ -658,7 +656,7 @@ select.input{appearance:none;padding-right:40px;
 @keyframes shine{0%,62%{left:-120%;}82%,100%{left:130%;}}
 
 /* welcome backdrop: quiet depth behind the brand */
-.screen.welcome{background:
+.screen.welcome{padding-top:env(safe-area-inset-top);background:
   radial-gradient(520px 300px at 50% 12%,rgba(201,153,43,.16),transparent 70%),
   radial-gradient(640px 420px at 50% 104%,rgba(21,102,58,.14),transparent 72%),
   var(--bg);}
@@ -692,4 +690,4 @@ select.input{appearance:none;padding-right:40px;
 }
 
 /* toast must clear a visible prompt bar instead of sitting on top of it */
-.phone.has-prompt .toast{bottom:168px;}
+.app.has-prompt .toast{bottom:168px;}

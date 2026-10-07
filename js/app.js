@@ -109,6 +109,10 @@
       results:"results", tryOther:"Try another category or search word.",
       noChatsSub:"When you message a seller it will appear here.",
       totalAds:"ads",
+      enterKey:"Enter key", stepDown:"Step down",
+      enterKeyPrompt:"Enter the administrator key",
+      adminOn:"Administrator access enabled", adminOff:"Administrator access removed",
+      badKey:"Incorrect admin key",
       confirmDelete:"Delete your account and every listing, photo and message? This cannot be undone.",
       accountDeleted:"Account deleted",
       favourites:"Saved listings", noFavs:"You have not saved anything yet",
@@ -903,9 +907,13 @@
       }).join("")+'</div>'
       +'<div class="group-title">'+t("account")+'</div>'
       +(LIVE
-        ? '<div class="prow"><div class="pic">'+I("shield")+'</div><div class="pl">'
+        ? '<div class="prow" id="admin-row"><div class="pic">'+I("shield")+'</div><div class="pl">'
           +'<div class="plt">'+t("adminMode")+'</div>'
-          +'<div class="pls">'+(state.role==="admin"?t("verified"):t("adminByNumber"))+'</div></div></div>'
+          +'<div class="pls">'+(state.role==="admin"?("\u2713 "+t("verified")):t("adminByNumber"))+'</div></div>'
+          +(state.role==="admin"
+            ? '<button class="btn sm btn-outline" id="admin-off">'+t("stepDown")+'</button>'
+            : '<button class="btn sm btn-primary" id="admin-on">'+t("enterKey")+'</button>')
+          +'</div>'
         : '<div class="prow"><div class="pic">'+I("shield")+'</div><div class="pl"><div class="plt">'+t("adminMode")+'</div></div>'
           +'<button class="switch '+(state.role==="admin"?"on":"")+'" data-admin role="switch" aria-checked="'+(state.role==="admin")+'"></button></div>')
       +(state.role==="admin"?'<div class="prow" data-go="admin"><div class="pic">'+I("inbox")+'</div>'
@@ -1201,6 +1209,19 @@
       if(i>=0) arr.splice(i,1); else arr.push(k); this.classList.toggle("on"); save();
     }); });
     document.querySelectorAll("[data-setradius]").forEach(function(b){ b.addEventListener("click",function(){ state.user.alerts.radius=+this.getAttribute("data-setradius"); go("settings"); }); });
+    var on=document.getElementById("admin-on");
+    if(on) on.addEventListener("click",function(){
+      var k=window.prompt(t("enterKeyPrompt")); if(!k) return;
+      API.adminElevate(k.trim()).then(function(r){
+        state.role=(r.user&&r.user.role)||"admin"; save();
+        toast(t("adminOn")); go("settings");
+      }).catch(function(e){ toast(e&&e.message?e.message:t("badKey")); });
+    });
+    var off=document.getElementById("admin-off");
+    if(off) off.addEventListener("click",function(){
+      API.adminStepDown().then(function(){ state.role="user"; save(); toast(t("adminOff")); go("settings"); })
+        .catch(apiFail);
+    });
     var adm=document.querySelector("[data-admin]"); adm&&adm.addEventListener("click",function(){ state.role=state.role==="admin"?"user":"admin"; save(); go("settings"); });
     var lo=document.getElementById("logout");
     if(lo) lo.addEventListener("click",function(){
@@ -1468,7 +1489,7 @@
   function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent)
     || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1); } // iPadOS 13+
   function syncPromptClass(){
-    var ph=document.querySelector(".phone"); if(!ph) return;
+    var ph=document.querySelector(".app"); if(!ph) return;
     var ib=document.getElementById("install-bar"), nb=document.getElementById("notif-ask");
     ph.classList.toggle("has-prompt", (ib && !ib.hidden) || (nb && !nb.hidden));
   }

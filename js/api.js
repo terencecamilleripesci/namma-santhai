@@ -80,6 +80,8 @@ window.NS_API = (function () {
     updateMe: function (patch) { return req("PATCH", "/api/me", patch); },
     logout: function () { return req("POST", "/api/auth/logout"); },
     deleteAccount: function () { return req("DELETE", "/api/me"); },
+    adminElevate: function (secret) { return req("POST", "/api/admin/elevate", { secret: secret }); },
+    adminStepDown: function () { return req("POST", "/api/admin/step-down"); },
     exportMe: function () { return req("GET", "/api/me/export"); },
 
     listings: function (params) {

@@ -17,6 +17,10 @@ import sms as SMS
 import push as PUSH
 
 app = Flask(__name__, static_folder=None)
+# Without this a single POST can stream unlimited bytes into memory and take the
+# whole Pi down. Photos are base64 in JSON, which inflates ~33%, so the cap sits
+# above the 4 MB per-image limit with room for a few images per request.
+app.config["MAX_CONTENT_LENGTH"] = 24 * 1024 * 1024
 
 OTP_TTL = 5 * 60          # code valid 5 minutes
 OTP_MAX_ATTEMPTS = 5
@@ -74,6 +78,86 @@ def cors(resp):
 @app.route("/api/<path:_any>", methods=["OPTIONS"])
 def preflight(_any):
     return make_response("", 204)
+
+
+# ---------------------------------------------------------------- rate limit
+# In-process and therefore reset by a restart - honest about what it is. It
+# stops scripted abuse of signin/post/message, which is the realistic threat
+# here; a real deployment wants this in front of the app (nginx/Cloudflare).
+_HITS = {}
+# Indian mobile users sit behind carrier-grade NAT: a whole town can share one
+# IP. A tight per-IP cap on signin would lock out real farmers, so the per-IP
+# limits are generous and the SENSITIVE one (the admin key) is tight.
+_RATES = {
+    "/api/auth/signin":        (60, 600),    # CGNAT-friendly
+    "/api/listings":           (30, 600),
+    "/api/conversations":      (40, 600),
+    "/api/push/test":          (5, 600),
+    "/api/admin/elevate":      (5, 900),     # brute-forcing the admin key
+}
+
+
+def _client_ip():
+    fwd = request.headers.get("X-Forwarded-For", "")
+    return (fwd.split(",")[0].strip() if fwd else request.remote_addr) or "?"
+
+
+MAX_BODY = 24 * 1024 * 1024
+
+
+@app.before_request
+def body_cap():
+    """Enforce the size cap ourselves.
+
+    MAX_CONTENT_LENGTH alone was not enough: behind the tunnel the request
+    arrives re-chunked with no Content-Length, so Werkzeug has nothing to check
+    and a 26 MB body sailed through. Check the header when it is there, and
+    otherwise read the stream with a hard ceiling.
+    """
+    if request.method in ("GET", "OPTIONS", "HEAD"):
+        return None
+    cl = request.content_length
+    if cl is not None and cl > MAX_BODY:
+        return err("too_large", "That upload is too large", 413)
+    if cl is None and request.path.startswith("/api/"):
+        try:
+            data = request.get_data(cache=True, as_text=False)
+        except Exception:                                # noqa: BLE001
+            return err("too_large", "That upload is too large", 413)
+        if len(data) > MAX_BODY:
+            return err("too_large", "That upload is too large", 413)
+    return None
+
+
+@app.before_request
+def rate_limit():
+    if request.method in ("GET", "OPTIONS"):
+        return None
+    rule = None
+    for path, cfg in _RATES.items():
+        if request.path == path or request.path.startswith(path + "/"):
+            rule = cfg
+            break
+    if not rule:
+        return None
+    cap, window = rule
+    key = (_client_ip(), request.path)
+    now = time.time()
+    hits = [h for h in _HITS.get(key, []) if now - h < window]
+    if len(hits) >= cap:
+        hits.append(now); _HITS[key] = hits
+        return err("rate_limited", "Too many requests. Please wait and try again.", 429)
+    hits.append(now)
+    _HITS[key] = hits
+    if len(_HITS) > 5000:                       # keep the table bounded
+        for k in [k for k, v in _HITS.items() if not any(now - h < 3600 for h in v)]:
+            _HITS.pop(k, None)
+    return None
+
+
+@app.errorhandler(413)
+def too_large(_e):
+    return err("too_large", "That upload is too large", 413)
 
 
 def err(code, msg, http=400):
@@ -242,11 +326,16 @@ def issue_session(con, phone, name=None, admin_secret=None):
         uid = cur.lastrowid
     else:
         uid = u["id"]
-        # Re-evaluate the role every sign-in: an existing admin row must not
-        # keep its powers for someone who cannot present the secret.
-        want = "admin" if (phone in ADMIN_PHONES and admin_ok(admin_secret)) else "user"
-        if u["role"] != want:
-            con.execute("UPDATE users SET role=? WHERE id=?", (want, uid))
+        # Presenting the secret at sign-in promotes. NOT presenting it does not
+        # demote: a plain sign-in silently wiping the only administrator is how
+        # the admin account was lost. Stepping down is explicit
+        # (POST /api/admin/step-down), and a number removed from ADMIN_PHONES
+        # is still demoted here.
+        if phone in ADMIN_PHONES and admin_ok(admin_secret):
+            if u["role"] != "admin":
+                con.execute("UPDATE users SET role='admin' WHERE id=?", (uid,))
+        elif phone not in ADMIN_PHONES and u["role"] == "admin":
+            con.execute("UPDATE users SET role='user' WHERE id=?", (uid,))
         if name and not (u["name"] or "").strip():
             con.execute("UPDATE users SET name=? WHERE id=?", ((name or "")[:80], uid))
         con.execute("UPDATE users SET last_seen=? WHERE id=?", (now, uid))
@@ -277,6 +366,41 @@ def signin():
     con.close()
     return jsonify({"token": tok, "user": public_user(user, self_view=True),
                     "verified": False, "auth_mode": "open"})
+
+
+@app.post("/api/admin/elevate")
+@require_auth
+def admin_elevate():
+    """Raise the CURRENT session to admin by presenting the admin secret.
+
+    Admin needs two things - a number on NS_ADMIN_PHONES and the secret - but
+    the app had no way to supply the secret, so after the second factor landed
+    the admin simply could not become admin again. This is that missing door.
+    Deliberately does NOT accept a phone number: it only elevates the account
+    you are already signed in as.
+    """
+    secret = (request.get_json(silent=True) or {}).get("secret", "")
+    u = g.user
+    if u["phone"] not in ADMIN_PHONES:
+        # Same answer either way - do not confirm which numbers are admins.
+        return err("not_admin", "This account cannot be an administrator", 403)
+    if not admin_ok(secret):
+        return err("bad_secret", "Incorrect admin key", 403)
+    con = D.connect()
+    con.execute("UPDATE users SET role='admin' WHERE id=?", (u["id"],))
+    con.commit()
+    row = D.row_to_dict(con.execute("SELECT * FROM users WHERE id=?", (u["id"],)).fetchone())
+    con.close()
+    return jsonify({"ok": True, "user": public_user(row, self_view=True)})
+
+
+@app.post("/api/admin/step-down")
+@require_auth
+def admin_step_down():
+    con = D.connect()
+    con.execute("UPDATE users SET role='user' WHERE id=?", (g.user["id"],))
+    con.commit(); con.close()
+    return jsonify({"ok": True})
 
 
 @app.post("/api/auth/logout")
