@@ -487,8 +487,10 @@ def public_profile(uid):
 
 # ------------------------------------------------------------------ listings
 def listing_json(con, r, viewer=None):
-    photos = [("/api/media/" + m["key"]) for m in
-              con.execute("SELECT key FROM media WHERE listing_id=? ORDER BY ord", (r["id"],))]
+    _keys = [m["key"] for m in
+             con.execute("SELECT key FROM media WHERE listing_id=? ORDER BY ord", (r["id"],))]
+    photos = ["/api/media/" + k for k in _keys]
+    thumbs = ["/api/media/" + k + "?size=thumb" for k in _keys]
     owner = con.execute("SELECT * FROM users WHERE id=?", (r["owner_id"],)).fetchone()
     try:
         specs = json.loads(r["specs"] or "{}")
@@ -501,7 +503,7 @@ def listing_json(con, r, viewer=None):
         "views": r["views"], "created_at": r["created_at"],
         "loc": {"district": r["district"], "village": r["village"],
                 "locality": r["locality"], "lat": r["lat"], "lon": r["lon"]},
-        "photos": photos,
+        "photos": photos, "thumbs": thumbs,
         "owner": public_user(D.row_to_dict(owner)),
     }
 
@@ -586,30 +588,88 @@ def validate_listing(d, is_wanted):
     return errs
 
 
+MAX_DIM = 1600          # stored longest edge
+THUMB_DIM = 480         # what the feed actually loads
+JPEG_Q = 82
+
+
+def _process_image(raw):
+    """Decode, re-encode, and return (full_jpeg, thumb_jpeg) or (None, None).
+
+    Re-encoding is the security control, not a nicety:
+      * it PROVES the bytes are really an image. Previously we trusted the
+        data-URL's declared type, so anything could be stored and then served
+        back from our own origin.
+      * it DROPS ALL METADATA, including EXIF GPS. Phone photos carry the
+        coordinates the picture was taken at - publishing a farmer's home
+        location alongside their livestock is a safety problem, not a privacy
+        footnote.
+      * it applies EXIF orientation first, so portrait photos stop arriving
+        sideways.
+    """
+    from io import BytesIO
+    try:
+        from PIL import Image, ImageOps
+    except Exception:                                    # noqa: BLE001
+        return None, None
+    try:
+        im = Image.open(BytesIO(raw))
+        im.verify()                                      # structural check
+        im = Image.open(BytesIO(raw))                    # verify() exhausts it
+        im = ImageOps.exif_transpose(im)                 # honour rotation
+        if im.mode not in ("RGB", "L"):
+            im = im.convert("RGB")
+
+        full = im.copy()
+        full.thumbnail((MAX_DIM, MAX_DIM), Image.LANCZOS)
+        fb = BytesIO()
+        full.save(fb, "JPEG", quality=JPEG_Q, optimize=True)
+
+        th = im.copy()
+        th.thumbnail((THUMB_DIM, THUMB_DIM), Image.LANCZOS)
+        tb = BytesIO()
+        th.save(tb, "JPEG", quality=78, optimize=True)
+        return fb.getvalue(), tb.getvalue()
+    except Exception:                                    # noqa: BLE001
+        return None, None                                # not a real image
+
+
 def save_photos(con, listing_id, owner_id, photos):
-    """photos: list of data: URLs or existing /api/media/<key> paths."""
+    """photos: data: URLs, or /api/media/<key> paths for images already stored."""
     con.execute("DELETE FROM media WHERE listing_id=?", (listing_id,))
     for i, p in enumerate(photos[:6]):
         p = str(p)
         if p.startswith("/api/media/"):
-            key = p.rsplit("/", 1)[-1]
+            key = p.rsplit("/", 1)[-1].split("?")[0]
             if not re.match(r"^[A-Za-z0-9_.-]+$", key):
                 continue
             con.execute("INSERT INTO media(listing_id,owner_id,key,kind,ord,created_at) "
                         "VALUES(?,?,?,'photo',?,?)", (listing_id, owner_id, key, i, D.now()))
             continue
-        m = re.match(r"^data:image/(png|jpe?g|webp);base64,(.+)$", p, re.I)
+        m = re.match(r"^data:image/[A-Za-z0-9.+-]+;base64,(.+)$", p, re.I)
         if not m:
             continue
-        raw = base64.b64decode(m.group(2), validate=False)
+        try:
+            raw = base64.b64decode(m.group(1), validate=True)
+        except Exception:                                # noqa: BLE001
+            continue
         if len(raw) > MAX_UPLOAD:
             continue
-        ext = "jpg" if m.group(1).lower() in ("jpg", "jpeg") else m.group(1).lower()
-        key = "%d_%s.%s" % (listing_id, secrets.token_hex(6), ext)   # immutable key
+        full, thumb = _process_image(raw)
+        if not full:
+            continue                                     # rejected: not an image
+        key = "%d_%s.jpg" % (listing_id, secrets.token_hex(6))   # immutable key
         with open(os.path.join(D.UPLOADS, key), "wb") as fh:
-            fh.write(raw)
+            fh.write(full)
+        with open(os.path.join(D.UPLOADS, _thumb_key(key)), "wb") as fh:
+            fh.write(thumb)
         con.execute("INSERT INTO media(listing_id,owner_id,key,kind,ord,created_at) "
                     "VALUES(?,?,?,'photo',?,?)", (listing_id, owner_id, key, i, D.now()))
+
+
+def _thumb_key(key):
+    base, _, ext = key.rpartition(".")
+    return "%s_t.%s" % (base or key, ext or "jpg")
 
 
 @app.post("/api/listings")
@@ -711,10 +771,21 @@ def delete_listing(lid):
 
 @app.get("/api/media/<key>")
 def media(key):
-    if not re.match(r"^[A-Za-z0-9_.-]+$", key):
+    if not re.match(r"^[A-Za-z0-9_.-]+$", key) or ".." in key:
         return err("bad_key", "Bad key", 400)
+    # ?size=thumb serves the small copy - the feed should never pull full-size
+    # photos over a 2G connection.
+    if request.args.get("size") == "thumb":
+        tk = _thumb_key(key)
+        if os.path.exists(os.path.join(D.UPLOADS, tk)):
+            key = tk
     resp = send_from_directory(D.UPLOADS, key)
     resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    # Everything we store is re-encoded JPEG; say so and forbid sniffing, so a
+    # stored file can never be interpreted as script on our own origin.
+    resp.headers["Content-Type"] = "image/jpeg"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Content-Disposition"] = "inline"
     return resp
 
 
@@ -1033,10 +1104,11 @@ def delete_me():
         con.execute("BEGIN IMMEDIATE")
         # remove uploaded files from disk, not just their rows
         for m in con.execute("SELECT key FROM media WHERE owner_id=?", (uid,)).fetchall():
-            try:
-                os.remove(os.path.join(D.UPLOADS, m["key"]))
-            except OSError:
-                pass
+            for k in (m["key"], _thumb_key(m["key"])):
+                try:
+                    os.remove(os.path.join(D.UPLOADS, k))
+                except OSError:
+                    pass
         convs = [r["id"] for r in con.execute(
             "SELECT id FROM conversations WHERE buyer_id=? OR seller_id=?", (uid, uid))]
         if convs:

@@ -345,7 +345,7 @@
   }
   function L(o){
     o.type=o.type||"sale"; o.unit=o.unit||"total"; o.qty=o.qty||1; o.views=o.views||0;
-    o.photos=o.photos||[]; o.video=!!o.video; o.rej=o.rej||""; o.specs=o.specs||{};
+    o.photos=o.photos||[]; o.thumbs=o.thumbs||o.photos; o.video=!!o.video; o.rej=o.rej||""; o.specs=o.specs||{};
     o.loc=o.loc||{mode:"manual",district:"Madurai",village:"",locality:"Madurai, Tamil Nadu",km:5};
     o.created=o.created||"today"; return o;
   }
@@ -383,8 +383,12 @@
   /* ---------- small helpers ---------- */
   var app = function(){ return document.getElementById("app"); };
   var esc = function(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); };
-  function media(l, extra){
-    var ph = l.photos && l.photos[0];
+  function media(l, extra, useThumb){
+    // Cards and lists load the 480px thumbnail; only the detail hero loads the
+    // full image. On a 2G connection that is the difference between a feed
+    // that opens and one that does not.
+    var ph = useThumb ? ((l.thumbs && l.thumbs[0]) || (l.photos && l.photos[0]))
+                      : (l.photos && l.photos[0]);
     var alt = esc(l.title||"");
     if(ph) return '<div class="media '+(extra||"")+'"><img src="'+ph+'" alt="'+alt+'" loading="lazy" decoding="async"></div>';
     // No photo: show the category artwork, never an emoji glyph.
@@ -545,7 +549,7 @@
     var mine = l.owner==="me" && l.status!=="active";
     var fresh = !mine && (Date.now()/1000 - (l.createdTs||0) < 86400);
     return '<article class="card" data-open="'+l.id+'">'
-      +'<div class="thumb">'+media(l)
+      +'<div class="thumb">'+media(l,"",true)
       +(mine?'<span class="tag">'+t("tab"+l.status.charAt(0).toUpperCase()+l.status.slice(1))+'</span>'
             :(fresh?'<span class="tag new">'+t("tagNew")+'</span>':""))
       +'<button class="fav'+(isFav(l.id)?" on":"")+'" data-fav="'+l.id+'" aria-label="'+t("save")+'">'
@@ -631,7 +635,7 @@
       +perm+radrow
       +(items.length?'<div class="list">'+items.map(function(l){
           return '<article class="lrow" data-open="'+l.id+'">'
-            +'<div class="lthumb">'+media(l)+'</div>'
+            +'<div class="lthumb">'+media(l,"",true)+'</div>'
             +'<div class="lbody"><div class="price">'+INR(l.price)+'</div>'
             +'<div class="title">'+esc(l.title)+'</div>'
             +'<div class="meta"><span>'+I("pin")+' '+esc(l.loc.locality||"")+'</span>'
@@ -793,7 +797,7 @@
         +'<button class="btn sm btn-primary" data-edit="'+m.id+'">'+t("relist")+'</button></div>';
       else if(m.status==="pending") acts='<div class="mactions">'
         +'<button class="btn sm btn-outline" data-edit="'+m.id+'">'+I("edit","ic-sm")+t("edit")+'</button></div>';
-      return '<div class="mcard"><div class="mthumb">'+media(m)
+      return '<div class="mcard"><div class="mthumb">'+media(m,"",true)
         +(m.status==="sold"?'<span class="sold-veil">'+t("tabSold")+'</span>':"")+'</div>'
         +'<div class="mbody"><div class="title" style="font-weight:700">'+esc(m.title)+'</div>'
         +'<div class="price" style="color:var(--green);font-weight:800">'+INR(m.price)+'</div>'
@@ -856,7 +860,7 @@
       +'<div><div class="appbar-title" style="font-size:15px">'+esc(o.name)+'</div>'
       +'<div class="appbar-sub">'+esc(presence(o))+'</div></div><span class="spacer"></span></header>'
       +(l?'<div class="chat-ctx" data-open="'+l.id+'">'
-        +'<div class="cimg">'+media(l)+'</div>'
+        +'<div class="cimg">'+media(l,"",true)+'</div>'
         +'<div class="grow"><div class="ct">'+esc(l.title)+'</div>'
         +'<div class="cp">'+INR(l.price)+'</div></div>'+I("chevron","ic-sm")+'</div>':"")
       +'<div class="chat-body" id="chat-body">'+c.msgs.map(function(m){
@@ -942,7 +946,7 @@
     var pend=state.listings.filter(function(l){return l.status==="pending"||l.status==="active";});
     var body = pend.length ? pend.map(function(l){
       var sel=sellerOf(l);
-      return '<div class="admin-card"><div class="amedia">'+media(l)+'</div><div class="abody">'
+      return '<div class="admin-card"><div class="amedia">'+media(l,"",true)+'</div><div class="abody">'
         +'<div class="arow"><span class="k">'+t("title")+'</span><b>'+esc(l.title)+'</b></div>'
         +'<div class="arow"><span class="k">'+t("price")+'</span><b>'+INR(l.price)+'</b></div>'
         +'<div class="arow"><span class="k">'+t("category")+'</span><span>'+cat(l.category)+'</span></div>'
@@ -1582,6 +1586,7 @@
       type:s.type, category:s.category, title:s.title, price:s.price, unit:s.unit, qty:s.qty,
       desc:s.desc||"", specs:s.specs||{}, status:s.status, rej:s.reject_reason||"", views:s.views||0,
       photos:(s.photos||[]).map(function(p){return API.mediaUrl(p);}),
+      thumbs:(s.thumbs||s.photos||[]).map(function(p){return API.mediaUrl(p);}),
       createdTs:s.created_at||0,
       loc:{mode:(s.loc&&s.loc.lat)?"gps":"manual", district:(s.loc&&s.loc.district)||"",
            village:(s.loc&&s.loc.village)||"",
