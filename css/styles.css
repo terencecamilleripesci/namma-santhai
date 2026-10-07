@@ -691,3 +691,10 @@ select.input{appearance:none;padding-right:40px;
 
 /* toast must clear a visible prompt bar instead of sitting on top of it */
 .app.has-prompt .toast{bottom:168px;}
+
+/* consent checkbox on sign-in — a real, recorded tick, not a buried notice */
+.consent{display:flex;gap:10px;align-items:flex-start;margin:var(--s4) 0 var(--s2);
+  font-size:13px;line-height:1.5;color:var(--ink-2);cursor:pointer;}
+.consent input{width:22px;height:22px;flex:0 0 22px;margin:1px 0 0;accent-color:var(--green);}
+.consent a{color:var(--green);font-weight:700;}
+#agree-err{display:none;}

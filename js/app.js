@@ -110,6 +110,12 @@
       noChatsSub:"When you message a seller it will appear here.",
       totalAds:"ads",
       unknownUser:"Unknown user",
+      consentText:"I am 18 or older and I accept the",
+      terms:"Terms of Use", privacy:"Privacy Policy", and:"and",
+      mustAgree:"Please confirm you are 18 or older and accept the terms",
+      legal:"Legal", exportData:"Download my data",
+      exportSub:"Everything we hold about you, as a file",
+      exportDone:"Your data file has been downloaded",
       report:"Report", block:"Block",
       reportTitle:"Report this listing", reportSub:"Our team reviews every report.",
       reasonScam:"Scam or asking for advance payment",
@@ -546,6 +552,12 @@
       +'<div class="err-msg">'+I("alert","ic-sm")+t("errPhone")+'</div></div>'
       +(live?'<div class="field"><label for="signin-name">'+t("yourName")+'</label>'
         +'<input class="input" id="signin-name" autocomplete="name" placeholder="Ramesh Kumar" value="'+esc(state.user.name||"")+'"></div>':"")
+      +'<label class="consent" for="agree">'
+      +'<input type="checkbox" id="agree"'+(state.user.agreed?" checked":"")+'>'
+      +'<span>'+t("consentText")
+      +' <a href="legal/terms.html" target="_blank" rel="noopener">'+t("terms")+'</a> '
+      +t("and")+' <a href="legal/privacy.html" target="_blank" rel="noopener">'+t("privacy")+'</a>.</span></label>'
+      +'<div class="err-msg" id="agree-err">'+I("alert","ic-sm")+t("mustAgree")+'</div>'
       +'<button class="btn btn-primary" id="send-otp">'+(live?t("continue"):t("sendOtp"))+I("chevron","ic-sm")+'</button>'
 
       +'<p class="hint center" style="margin-top:16px">'+I("lock","ic-sm")+' '+t("privacyNote")+'</p>'
@@ -975,6 +987,17 @@
         +'<div class="pl"><div class="plt">'+t("adminQueue")+'</div></div><span class="chev">'+I("chevron","ic-sm")+'</span></div>'
         +'<div class="prow" data-go="reports"><div class="pic" style="background:var(--danger-bg);color:var(--danger)">'+I("alert")+'</div>'
         +'<div class="pl"><div class="plt">'+t("reports")+'</div></div><span class="chev">'+I("chevron","ic-sm")+'</span></div>':"")
+      +'<div class="group-title">'+t("legal")+'</div>'
+      +'<a class="prow" href="legal/privacy.html" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
+      +'<div class="pic">'+I("lock")+'</div><div class="pl"><div class="plt">'+t("privacy")+'</div></div>'
+      +'<span class="chev">'+I("chevron","ic-sm")+'</span></a>'
+      +'<a class="prow" href="legal/terms.html" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
+      +'<div class="pic">'+I("list")+'</div><div class="pl"><div class="plt">'+t("terms")+'</div></div>'
+      +'<span class="chev">'+I("chevron","ic-sm")+'</span></a>'
+      +'<div class="prow" id="export-data"><div class="pic">'+I("download")+'</div>'
+      +'<div class="pl"><div class="plt">'+t("exportData")+'</div>'
+      +'<div class="pls">'+t("exportSub")+'</div></div>'
+      +'<span class="chev">'+I("chevron","ic-sm")+'</span></div>'
       +'<div class="prow" id="replay"><div class="pic">'+I("sparkle")+'</div>'
       +'<div class="pl"><div class="plt">'+t("replayTour")+'</div></div><span class="chev">'+I("chevron","ic-sm")+'</span></div>'
       +'<div class="prow" id="del-account"><div class="pic" style="background:var(--danger-bg);color:var(--danger)">'
@@ -1110,6 +1133,13 @@
       document.getElementById("send-otp").addEventListener("click",function(){
         var v=ph.value.trim();
         if(!/^[6-9]\d{9}$/.test(v)){ document.getElementById("f-phone").classList.add("invalid"); return; }
+        var agree=document.getElementById("agree");
+        if(agree && !agree.checked){
+          // DPDP needs a real recorded consent, not a buried notice.
+          var ae=document.getElementById("agree-err"); if(ae) ae.style.display="flex";
+          return;
+        }
+        state.user.agreed=true; state.user.agreedAt=Date.now(); save();
         // LIVE: number IS the login. No OTP, no password.
         if(API && API.enabled){
           var nm=(document.getElementById("signin-name")||{}).value||"";
@@ -1354,6 +1384,19 @@
     if(lo) lo.addEventListener("click",function(){
       if(LIVE){ API.logout().catch(function(){}); API.setToken(null); LIVE=false; }
       state.onboarded=false; save(); _go("welcome"); });
+    var ex=document.getElementById("export-data");
+    if(ex) ex.addEventListener("click",function(){
+      if(!LIVE){ toast(t("offlineTitle")); return; }
+      API.exportMe().then(function(data){
+        var blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+        var a=document.createElement("a");
+        a.href=URL.createObjectURL(blob);
+        a.download="namma-santhai-my-data.json";
+        document.body.appendChild(a); a.click();
+        setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1000);
+        toast(t("exportDone"));
+      }).catch(apiFail);
+    });
     var rep=document.getElementById("replay"); rep&&rep.addEventListener("click",function(){ go("welcome"); });
     var del=document.getElementById("del-account");
     del&&del.addEventListener("click",function(){
