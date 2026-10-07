@@ -1029,14 +1029,55 @@
       +body+'<div style="height:16px"></div></section>';
   };
 
-  /* ---------- router ---------- */
+  /* ---------- router ----------
+     Every screen now has a URL. Without this there is no share link, no SEO,
+     push notifications cannot deep-link, and Android's back button exits the
+     app instead of going back a screen - which users read as a crash. */
   var route="welcome", params={};
-  function go(r, p){
+  var DEEP = {listing:"id", chat:"id", seller:"id", browse:"cat", mylistings:"tab"};
+
+  function routeToHash(r,p){
+    p=p||{};
+    var key=DEEP[r];
+    var v=key?p[key]:null;
+    return "#/"+r+(v?("/"+encodeURIComponent(v)):"");
+  }
+  function hashToRoute(){
+    var h=(location.hash||"").replace(/^#\/?/,"");
+    if(!h) return null;
+    var bits=h.split("/").filter(Boolean);
+    var r=bits[0];
+    if(!S[r]) return null;
+    var p={};
+    var key=DEEP[r];
+    if(key && bits[1]) p[key]=decodeURIComponent(bits[1]);
+    return {route:r,params:p};
+  }
+
+  var suppressHash=false;
+  function go(r, p, opts){
     route=r; params=p||{};
     render();
     window.scrollTo(0,0);
-    var ap=app(); ap.scrollTop=0;
+    var ap=app(); if(ap) ap.scrollTop=0;
+    if(!(opts&&opts.fromHistory)){
+      var h=routeToHash(r,params);
+      if(location.hash!==h){
+        suppressHash=true;
+        // replace for transient screens so Back does not walk through them
+        if(opts&&opts.replace) location.replace(h); else location.hash=h;
+        setTimeout(function(){ suppressHash=false; },0);
+      }
+    }
   }
+
+  window.addEventListener("hashchange",function(){
+    if(suppressHash) return;
+    var t=hashToRoute();
+    if(!t){ return; }
+    // Android back / browser back: move between screens, never leave the app.
+    go(t.route,t.params,{fromHistory:true});
+  });
   function render(){
     document.documentElement.lang=lang;
     var fn=S[route]||S.home;
@@ -1076,7 +1117,9 @@
           API.signin(v,nm.trim()).then(function(r){
             API.setToken(r.token); startLive(r.user);
             toast(t("loginToast"));
-            go(r.user.name ? "home" : "profile");
+            var pd=state.pendingDeep; state.pendingDeep=null; save();
+            if(r.user.name && pd) go(pd.route, pd.params);
+            else go(r.user.name ? "home" : "profile");
             setTimeout(function(){ maybeAskNotifications(); startNotifPolling(); subscribePush(); }, 900);
           }).catch(function(e){ btn.disabled=false; btn.textContent=t("continue"); apiFail(e); });
           return;
@@ -1362,7 +1405,16 @@
     var mg=el.getAttribute("data-msg"); if(mg){ openChatFor(mg); return; }
     var cl=el.getAttribute("data-call"); if(cl){ toast(t("callToast")); return; }
     var wa=el.getAttribute("data-wa"); if(wa){ var l=byId(wa); var s=sellerOf(l); toast(t("waToast")); setTimeout(function(){ window.open("https://wa.me/"+(s.number||"").replace(/\D/g,"")+"?text="+encodeURIComponent(l.title),"_blank"); },300); return; }
-    var sh=el.getAttribute("data-share"); if(sh){ var l2=byId(sh); toast(t("waToast")); setTimeout(function(){ window.open("https://wa.me/?text="+encodeURIComponent(l2.title+" — "+INR(l2.price)),"_blank"); },300); return; }
+    var sh=el.getAttribute("data-share");
+    if(sh){
+      var l2=byId(sh);
+      var link=location.origin+location.pathname+"#/listing/"+encodeURIComponent(sh);
+      var text=l2.title+" - "+INR(l2.price)+"\n"+link;
+      if(navigator.share){ navigator.share({title:l2.title,text:l2.title+" - "+INR(l2.price),url:link}).catch(function(){}); return; }
+      toast(t("waToast"));
+      setTimeout(function(){ window.open("https://wa.me/?text="+encodeURIComponent(text),"_blank"); },300);
+      return;
+    }
     var nf=el.getAttribute("data-notif"); if(nf){ openNotif(nf); return; }
     var ed=el.getAttribute("data-edit"); if(ed){ editListing(ed); return; }
     var sd=el.getAttribute("data-sold"); if(sd){
@@ -1569,7 +1621,9 @@
     var body = p.preview || p.title || p.reason || "";
     try{
       var no=new Notification(title,{body:body,icon:"icons/icon-192.png",
-        badge:"icons/icon-192.png",tag:"ns-"+n.id});
+        badge:"icons/icon-192.png",tag:"ns-"+n.id,
+        data:{url:n.type==="message"&&n.conv_id?("#/chat/"+n.conv_id)
+                 :(n.listing_id?("#/listing/"+n.listing_id):"#/notifications")}});
       no.onclick=function(){ window.focus();
         if(n.type==="message"&&n.conv_id) go("chat",{id:String(n.conv_id)});
         else go("notifications");
@@ -1812,13 +1866,21 @@
 
   /* ---------- boot ---------- */
   load();
-  _go(state.onboarded ? "home" : "welcome");
+  // A link someone was sent must open what it points at. Remember it across
+  // sign-in so sharing actually works for a person who is not signed in yet.
+  var deep = hashToRoute();
+  var PUBLIC_DEEP = {listing:1, seller:1, browse:1};
+  if(deep && !PUBLIC_DEEP[deep.route]) deep = null;
+  _go(state.onboarded ? (deep ? deep.route : "home") : "welcome",
+      deep ? deep.params : {});
+  if(deep && !state.onboarded) state.pendingDeep = deep;
 
   if(API && API.enabled){
     API.health().then(function(h){
       if(!h || !h.ok){ _go("offline"); return; }
       if(API.token){
-        return API.me().then(function(r){ startLive(r.user); go("home");
+        return API.me().then(function(r){ startLive(r.user);
+                 var pd=hashToRoute(); go(pd&&PUBLIC_DEEP[pd.route]?pd.route:"home", pd?pd.params:{});
                  setTimeout(function(){ maybeAskNotifications(); startNotifPolling(); subscribePush(); },900); })
                       .catch(function(){ API.setToken(null); state.onboarded=false; save(); _go("welcome"); });
       }
