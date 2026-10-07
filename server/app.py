@@ -8,7 +8,8 @@ behind Tailscale Funnel), demo OTP by default. Easy to stop and delete.
 
 Run:  bash server/START.sh      Stop:  bash server/STOP.sh
 """
-import os, re, json, time, base64, secrets, random, sqlite3
+import os, re, json, time, base64, secrets, random, sqlite3, logging, traceback
+from logging.handlers import RotatingFileHandler
 from functools import wraps
 from flask import Flask, request, jsonify, g, send_from_directory, make_response
 
@@ -21,6 +22,34 @@ app = Flask(__name__, static_folder=None)
 # whole Pi down. Photos are base64 in JSON, which inflates ~33%, so the cap sits
 # above the 4 MB per-image limit with room for a few images per request.
 app.config["MAX_CONTENT_LENGTH"] = 24 * 1024 * 1024
+
+# ---------------------------------------------------------------- logging
+# Previously a 500 vanished into the systemd journal with no stack trace, so a
+# broken route could fail for every user and nobody would know. Errors now go
+# to a rotating file with the request that caused them.
+LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+_h = RotatingFileHandler(os.path.join(LOG_DIR, "errors.log"),
+                         maxBytes=2 * 1024 * 1024, backupCount=5)
+_h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+_h.setLevel(logging.WARNING)
+app.logger.addHandler(_h)
+app.logger.setLevel(logging.INFO)
+
+# Counters so /api/health can show whether anything is going wrong at all.
+STATS = {"started_at": int(time.time()), "requests": 0, "errors": 0, "rate_limited": 0}
+
+
+@app.errorhandler(Exception)
+def unhandled(e):
+    """Never leak a stack trace to a user; always keep one for us."""
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
+    STATS["errors"] += 1
+    app.logger.error("UNHANDLED %s %s\n%s", request.method, request.path,
+                     traceback.format_exc())
+    return err("server_error", "Something went wrong. Please try again.", 500)
 
 OTP_TTL = 5 * 60          # code valid 5 minutes
 OTP_MAX_ATTEMPTS = 5
@@ -106,6 +135,13 @@ MAX_BODY = 24 * 1024 * 1024
 
 
 @app.before_request
+def count_request():
+    if request.path.startswith("/api/"):
+        STATS["requests"] += 1
+    return None
+
+
+@app.before_request
 def body_cap():
     """Enforce the size cap ourselves.
 
@@ -146,6 +182,7 @@ def rate_limit():
     hits = [h for h in _HITS.get(key, []) if now - h < window]
     if len(hits) >= cap:
         hits.append(now); _HITS[key] = hits
+        STATS["rate_limited"] += 1
         return err("rate_limited", "Too many requests. Please wait and try again.", 429)
     hits.append(now)
     _HITS[key] = hits
@@ -1264,7 +1301,12 @@ def health():
     counts = {t: con.execute("SELECT COUNT(*) n FROM " + t).fetchone()["n"]
               for t in ("users", "listings", "messages", "notifications")}
     con.close()
+    up = int(time.time()) - STATS["started_at"]
     return jsonify({"ok": True, "trial": True, "counts": counts,
+                    "uptime_s": up,
+                    "requests": STATS["requests"],
+                    "errors": STATS["errors"],
+                    "rate_limited": STATS["rate_limited"],
                     "auth_mode": AUTH_MODE, "moderation": MODERATION,
                     "admin_secret_set": bool(ADMIN_SECRET),
                     "otp_required": AUTH_MODE != "open",
