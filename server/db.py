@@ -138,6 +138,31 @@ CREATE TABLE IF NOT EXISTS push_subs (
 );
 CREATE INDEX IF NOT EXISTS ix_push_user ON push_subs(user_id);
 
+-- Trust & safety. A marketplace without a way to report a listing or block a
+-- person is not shippable: it is a Play policy requirement for user content,
+-- and on a livestock market where advance-payment fraud is the number one scam
+-- it is the only lever a victim has.
+CREATE TABLE IF NOT EXISTS reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  reporter_id INTEGER NOT NULL,
+  listing_id INTEGER,
+  reported_user_id INTEGER,
+  reason TEXT NOT NULL,                      -- scam|fake|offensive|sold|other
+  detail TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'open',       -- open|actioned|dismissed
+  reviewed_by INTEGER, reviewed_at INTEGER, outcome TEXT DEFAULT '',
+  created_at INTEGER NOT NULL,
+  UNIQUE(reporter_id, listing_id)            -- one report per person per ad
+);
+CREATE INDEX IF NOT EXISTS ix_reports_status ON reports(status, created_at);
+
+CREATE TABLE IF NOT EXISTS blocks (
+  blocker_id INTEGER NOT NULL,
+  blocked_id INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (blocker_id, blocked_id)
+);
+
 -- outbound OTP log: proves what we ATTEMPTED and what actually happened.
 CREATE TABLE IF NOT EXISTS sms_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -198,6 +198,8 @@ def require_auth(fn):
         u = current_user()
         if not u:
             return err("unauthorized", "Sign in again", 401)
+        if u.get("status") == "suspended":
+            return err("suspended", "This account has been suspended", 403)
         g.user = u
         return fn(*a, **kw)
     return inner
@@ -534,7 +536,9 @@ def list_listings():
     args += [limit, offset]
     con = D.connect()
     rows = con.execute(sql, args).fetchall()
-    out = [listing_json(con, r) for r in rows]
+    viewer = current_user()
+    hidden = blocked_ids(con, viewer["id"]) if viewer else set()
+    out = [listing_json(con, r) for r in rows if r["owner_id"] not in hidden]
     con.close()
     return jsonify({"listings": out})
 
@@ -787,6 +791,111 @@ def media(key):
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Content-Disposition"] = "inline"
     return resp
+
+
+# ------------------------------------------------------- trust & safety
+REPORT_REASONS = ("scam", "fake", "offensive", "sold", "other")
+
+
+@app.post("/api/listings/<int:lid>/report")
+@require_auth
+def report_listing(lid):
+    d = request.get_json(silent=True) or {}
+    reason = str(d.get("reason", "")).strip().lower()
+    if reason not in REPORT_REASONS:
+        return err("bad_reason", "Choose a reason")
+    con = D.connect()
+    li = con.execute("SELECT * FROM listings WHERE id=?", (lid,)).fetchone()
+    if not li:
+        con.close(); return err("not_found", "Listing not found", 404)
+    if li["owner_id"] == g.user["id"]:
+        con.close(); return err("own_listing", "That is your own listing", 400)
+    try:
+        con.execute(
+            "INSERT INTO reports(reporter_id,listing_id,reported_user_id,reason,detail,created_at) "
+            "VALUES(?,?,?,?,?,?)",
+            (g.user["id"], lid, li["owner_id"], reason,
+             str(d.get("detail", ""))[:1000], D.now()))
+        con.commit()
+    except sqlite3.IntegrityError:
+        con.close()
+        return jsonify({"ok": True, "already": True})   # idempotent, not an error
+    con.close()
+    return jsonify({"ok": True})
+
+
+@app.post("/api/users/<int:uid>/block")
+@require_auth
+def block_user(uid):
+    if uid == g.user["id"]:
+        return err("self_block", "You cannot block yourself", 400)
+    con = D.connect()
+    con.execute("INSERT OR IGNORE INTO blocks(blocker_id,blocked_id,created_at) VALUES(?,?,?)",
+                (g.user["id"], uid, D.now()))
+    con.commit(); con.close()
+    return jsonify({"ok": True})
+
+
+@app.delete("/api/users/<int:uid>/block")
+@require_auth
+def unblock_user(uid):
+    con = D.connect()
+    con.execute("DELETE FROM blocks WHERE blocker_id=? AND blocked_id=?", (g.user["id"], uid))
+    con.commit(); con.close()
+    return jsonify({"ok": True})
+
+
+def blocked_ids(con, uid):
+    """Who this viewer has blocked, AND who has blocked them - blocking must
+    cut both ways or the blocked party can still reach the person."""
+    rows = con.execute(
+        "SELECT blocked_id AS o FROM blocks WHERE blocker_id=? "
+        "UNION SELECT blocker_id AS o FROM blocks WHERE blocked_id=?", (uid, uid))
+    return {r["o"] for r in rows}
+
+
+@app.get("/api/admin/reports")
+@require_admin
+def admin_reports():
+    con = D.connect()
+    rows = con.execute(
+        "SELECT r.*, l.title AS listing_title, u.name AS reporter_name "
+        "FROM reports r LEFT JOIN listings l ON l.id=r.listing_id "
+        "LEFT JOIN users u ON u.id=r.reporter_id "
+        "WHERE r.status='open' ORDER BY r.created_at DESC LIMIT 100").fetchall()
+    out = [{"id": r["id"], "listing_id": r["listing_id"], "listing": r["listing_title"],
+            "reason": r["reason"], "detail": r["detail"], "at": r["created_at"],
+            "reporter": r["reporter_name"] or ("user %s" % r["reporter_id"])} for r in rows]
+    con.close()
+    return jsonify({"reports": out})
+
+
+@app.post("/api/admin/reports/<int:rid>/resolve")
+@require_admin
+def resolve_report(rid):
+    d = request.get_json(silent=True) or {}
+    action = str(d.get("action", "")).lower()      # remove | suspend | dismiss
+    if action not in ("remove", "suspend", "dismiss"):
+        return err("bad_action", "Unknown action")
+    con = D.connect()
+    rep = con.execute("SELECT * FROM reports WHERE id=?", (rid,)).fetchone()
+    if not rep:
+        con.close(); return err("not_found", "Report not found", 404)
+    if action == "remove" and rep["listing_id"]:
+        con.execute("UPDATE listings SET status='rejected',reject_reason=?,updated_at=? WHERE id=?",
+                    ("Removed after a report: " + rep["reason"], D.now(), rep["listing_id"]))
+        notify(con, rep["reported_user_id"], "rejected", listing_id=rep["listing_id"],
+               payload={"reason": "Removed after a report"})
+    if action == "suspend" and rep["reported_user_id"]:
+        con.execute("UPDATE users SET status='suspended' WHERE id=?", (rep["reported_user_id"],))
+        con.execute("DELETE FROM sessions WHERE user_id=?", (rep["reported_user_id"],))
+        con.execute("UPDATE listings SET status='rejected',updated_at=? WHERE owner_id=? AND status='active'",
+                    (D.now(), rep["reported_user_id"]))
+    con.execute("UPDATE reports SET status=?,reviewed_by=?,reviewed_at=?,outcome=? WHERE id=?",
+                ("dismissed" if action == "dismiss" else "actioned",
+                 g.user["id"], D.now(), action, rid))
+    con.commit(); con.close()
+    return jsonify({"ok": True, "action": action})
 
 
 # ------------------------------------------------------------------ admin

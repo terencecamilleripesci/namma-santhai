@@ -110,6 +110,22 @@
       noChatsSub:"When you message a seller it will appear here.",
       totalAds:"ads",
       unknownUser:"Unknown user",
+      report:"Report", block:"Block",
+      reportTitle:"Report this listing", reportSub:"Our team reviews every report.",
+      reasonScam:"Scam or asking for advance payment",
+      reasonFake:"Fake or misleading listing",
+      reasonOffensive:"Offensive content",
+      reasonSold:"Already sold",
+      reasonOther:"Something else",
+      reportThanks:"Thank you. Our team will review it.",
+      confirmBlock:"Block this person? You will not see their listings and they cannot message you.",
+      blocked:"Blocked",
+      reports:"Reports", noReports:"No open reports",
+      reason_scam:"Scam / advance payment", reason_fake:"Fake listing",
+      reason_offensive:"Offensive", reason_sold:"Already sold", reason_other:"Other",
+      reportResolved:"Report resolved",
+      confirmAction:"Apply this action? It affects a real seller.",
+      actionRemove:"Remove ad", actionSuspend:"Suspend seller", actionDismiss:"Dismiss",
       offlineTitle:"No connection",
       offlineBody:"Namma Santhai cannot reach the server. Check your internet and try again.",
       retry:"Try again",
@@ -470,6 +486,25 @@
   /* ---------- SCREENS ---------- */
   var S = {};
 
+  function openReportSheet(lid){
+    var reasons=[["scam","reasonScam"],["fake","reasonFake"],
+                 ["offensive","reasonOffensive"],["sold","reasonSold"],["other","reasonOther"]];
+    var host=document.getElementById("sheet-host");
+    host.innerHTML='<div class="scrim" data-sheet-close></div><div class="sheet">'
+      +'<div class="sheet-grip"></div><h3>'+t("reportTitle")+'</h3>'
+      +'<p class="hint" style="margin:0 0 14px">'+t("reportSub")+'</p>'
+      +reasons.map(function(r){
+        return '<button class="btn btn-outline" style="justify-content:flex-start;margin-bottom:8px" '
+          +'data-report-reason="'+r[0]+'" data-report-lid="'+lid+'">'+t(r[1])+'</button>';
+      }).join("")
+      +'<button class="btn btn-ghost" style="width:100%" data-sheet-close>'+t("notNow")+'</button></div>';
+    host.hidden=false;
+  }
+  function closeSheet(){
+    var host=document.getElementById("sheet-host");
+    if(host){ host.hidden=true; host.innerHTML=""; }
+  }
+
   S.offline=function(){
     // The old behaviour was to fall back to an on-device demo when the server
     // could not be reached. That is dishonest: a seller could "post" an ad,
@@ -694,6 +729,9 @@
       +'<div class="ssince">'+t("memberSince")+' '+esc(sel.since)+'</div></div>'
       +'<span class="chev">'+I("chevron","ic-sm")+'</span></div>'
       +'<div class="safety">'+I("shield")+'<span>'+t("safety")+'</span></div>'
+      +(isMine?"":'<div class="row" style="gap:8px;margin-top:4px">'
+        +'<button class="btn btn-outline sm grow" data-report="'+l.id+'">'+I("alert","ic-sm")+t("report")+'</button>'
+        +'<button class="btn btn-outline sm grow" data-block="'+sel.id+'">'+I("close","ic-sm")+t("block")+'</button></div>')
       +'</div>'+contact+'</section>';
   };
 
@@ -934,7 +972,9 @@
         : '<div class="prow"><div class="pic">'+I("shield")+'</div><div class="pl"><div class="plt">'+t("adminMode")+'</div></div>'
           +'<button class="switch '+(state.role==="admin"?"on":"")+'" data-admin role="switch" aria-checked="'+(state.role==="admin")+'"></button></div>')
       +(state.role==="admin"?'<div class="prow" data-go="admin"><div class="pic">'+I("inbox")+'</div>'
-        +'<div class="pl"><div class="plt">'+t("adminQueue")+'</div></div><span class="chev">'+I("chevron","ic-sm")+'</span></div>':"")
+        +'<div class="pl"><div class="plt">'+t("adminQueue")+'</div></div><span class="chev">'+I("chevron","ic-sm")+'</span></div>'
+        +'<div class="prow" data-go="reports"><div class="pic" style="background:var(--danger-bg);color:var(--danger)">'+I("alert")+'</div>'
+        +'<div class="pl"><div class="plt">'+t("reports")+'</div></div><span class="chev">'+I("chevron","ic-sm")+'</span></div>':"")
       +'<div class="prow" id="replay"><div class="pic">'+I("sparkle")+'</div>'
       +'<div class="pl"><div class="plt">'+t("replayTour")+'</div></div><span class="chev">'+I("chevron","ic-sm")+'</span></div>'
       +'<div class="prow" id="del-account"><div class="pic" style="background:var(--danger-bg);color:var(--danger)">'
@@ -967,6 +1007,25 @@
     }).join("") : '<div class="empty"><img src="assets/empty-listings.png" alt=""><h3>'+t("noPending")+'</h3></div>';
     return '<section class="screen">'
       +bar({back:"settings",title:t("adminQueue"),sub:pend.length+" "+t("results")})
+      +body+'<div style="height:16px"></div></section>';
+  };
+
+  S.reports=function(){
+    var list=state.reports||[];
+    var body = list.length ? list.map(function(r){
+      return '<div class="admin-card"><div class="abody">'
+        +'<div class="arow"><span class="k">'+t("report")+'</span>'
+        +'<b>'+esc(t("reason_"+r.reason)||r.reason)+'</b></div>'
+        +'<div class="arow"><span class="k">'+t("title")+'</span><span>'+esc(r.listing||"-")+'</span></div>'
+        +'<div class="arow"><span class="k">'+t("seller")+'</span><span>'+esc(r.reporter||"-")+'</span></div>'
+        +(r.detail?'<p class="desc" style="font-size:13px;margin:6px 0 0">'+esc(r.detail)+'</p>':"")
+        +'</div><div class="admin-actions">'
+        +'<button class="btn btn-danger sm" style="flex:1" data-rep-act="remove" data-rep="'+r.id+'">'+t("actionRemove")+'</button>'
+        +'<button class="btn btn-danger sm" style="flex:1" data-rep-act="suspend" data-rep="'+r.id+'">'+t("actionSuspend")+'</button>'
+        +'<button class="btn btn-outline sm" style="flex:1" data-rep-act="dismiss" data-rep="'+r.id+'">'+t("actionDismiss")+'</button>'
+        +'</div></div>';
+    }).join("") : '<div class="empty"><img src="assets/empty-listings.png" alt=""><h3>'+t("noReports")+'</h3></div>';
+    return '<section class="screen">'+bar({back:"settings",title:t("reports"),sub:list.length+" "+t("results")})
       +body+'<div style="height:16px"></div></section>';
   };
 
@@ -1272,11 +1331,28 @@
 
   /* ---------- global delegation ---------- */
   document.addEventListener("click",function(e){
-    var el=e.target.closest("[data-go],[data-setlang],[data-open],[data-chip],[data-seller],[data-chat],[data-msg],[data-call],[data-wa],[data-share],[data-notif],[data-edit],[data-sold],[data-del],[data-mytab],[data-toggle],[data-approve],[data-reject],[data-confirm-reject],[data-noop]");
+    var el=e.target.closest("[data-go],[data-setlang],[data-open],[data-chip],[data-seller],[data-chat],[data-msg],[data-call],[data-wa],[data-share],[data-notif],[data-edit],[data-sold],[data-del],[data-mytab],[data-toggle],[data-approve],[data-reject],[data-confirm-reject],[data-noop],[data-fav],[data-radius],[data-report],[data-block],[data-report-reason],[data-sheet-close],[data-rep-act]");
     if(!el) return;
     if(el.hasAttribute("data-noop")){ return; }
     var g=el.getAttribute("data-go"); if(g){ go(g); return; }
     var sl=el.getAttribute("data-setlang"); if(sl){ lang=sl; save(); toast(t("langToast")); render(); return; }
+    if(el.hasAttribute("data-sheet-close")){ closeSheet(); return; }
+    var rp=el.getAttribute("data-report"); if(rp){ openReportSheet(rp); return; }
+    var rr=el.getAttribute("data-report-reason");
+    if(rr){
+      var rl=el.getAttribute("data-report-lid");
+      closeSheet();
+      if(LIVE) API.reportListing(rl,rr).then(function(){ toast(t("reportThanks")); }).catch(apiFail);
+      else toast(t("reportThanks"));
+      return;
+    }
+    var bk=el.getAttribute("data-block");
+    if(bk){
+      if(!window.confirm(t("confirmBlock"))) return;
+      if(LIVE) API.blockUser(bk).then(function(){ toast(t("blocked")); go("home"); }).catch(apiFail);
+      else { toast(t("blocked")); go("home"); }
+      return;
+    }
     var fv=el.getAttribute("data-fav");
     if(fv){ var on=toggleFav(fv); el.classList.toggle("on",on); toast(on?t("saved"):t("unsaved")); return; }
     var op=el.getAttribute("data-open"); if(op){ go("listing",{id:op}); return; }
@@ -1301,6 +1377,13 @@
       if(LIVE){ var pch={}; pch[tg==="call"?"allow_call":"allow_whatsapp"]=state.user[tg];
         API.updateMe(pch).then(function(){ toast(t("savedToast")); }).catch(apiFail); }
       else toast(t("savedToast")); return; }
+    var ra=el.getAttribute("data-rep-act");
+    if(ra){
+      var rid=el.getAttribute("data-rep");
+      if((ra==="remove"||ra==="suspend") && !window.confirm(t("confirmAction"))) return;
+      API.resolveReport(rid,ra).then(function(){ toast(t("reportResolved")); go("reports"); }).catch(apiFail);
+      return;
+    }
     var ap=el.getAttribute("data-approve"); if(ap){ approve(ap); return; }
     var rj=el.getAttribute("data-reject"); if(rj){ var rr=document.getElementById("rr-"+rj); rr&&rr.classList.toggle("show"); return; }
     var cr=el.getAttribute("data-confirm-reject"); if(cr){ confirmReject(cr); return; }
@@ -1660,6 +1743,9 @@
         var others = state.listings.filter(function(l){return l.owner!=="me";});
         state.listings = others.concat((r.listings||[]).map(mapListing));
       }));
+    }
+    if(route==="reports"){
+      jobs.push(API.reports().then(function(r){ state.reports=r.reports||[]; }));
     }
     if(route==="admin"){
       jobs.push(API.pending().then(function(r){
