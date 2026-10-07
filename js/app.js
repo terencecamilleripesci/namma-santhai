@@ -109,6 +109,10 @@
       results:"results", tryOther:"Try another category or search word.",
       noChatsSub:"When you message a seller it will appear here.",
       totalAds:"ads",
+      unknownUser:"Unknown user",
+      offlineTitle:"No connection",
+      offlineBody:"Namma Santhai cannot reach the server. Check your internet and try again.",
+      retry:"Try again",
       enterKey:"Enter key", stepDown:"Step down",
       enterKeyPrompt:"Enter the administrator key",
       adminOn:"Administrator access enabled", adminOff:"Administrator access removed",
@@ -305,23 +309,23 @@
   var INR = function(n){ return "₹" + Number(n).toLocaleString("en-IN"); };
 
   /* ---------- sellers (demo) ---------- */
-  var SELLERS = {
-    ramesh:{id:"ramesh",name:"Ramesh Kumar",initial:"R",verified:true,online:true,seen:0,call:true,whatsapp:true,number:"+919876543210",since:"Mar 2024",locality:"Alanganallur, Madurai"},
-    selvi:{id:"selvi",name:"Selvi Priya",initial:"S",verified:true,online:false,seen:12,call:false,whatsapp:true,number:"+919812345678",since:"Jan 2024",locality:"Melur, Madurai"},
-    senthil:{id:"senthil",name:"Senthil Raja",initial:"S",verified:true,online:false,seen:48,call:false,whatsapp:false,number:"",since:"Nov 2023",locality:"Srirangam, Trichy"},
-    murugan:{id:"murugan",name:"Murugan P",initial:"M",verified:true,online:true,seen:0,call:true,whatsapp:true,number:"+919845612300",since:"Feb 2024",locality:"Dindigul"},
-    arun:{id:"arun",name:"Arun Kumar",initial:"A",verified:true,online:false,seen:130,call:true,whatsapp:false,number:"+919834567890",since:"Mar 2024",locality:"Madurai"}
-  };
+  // No fabricated sellers. Every person shown must come from the server;
+  // inventing a "Ramesh Kumar" with a verified tick on a trust-led marketplace
+  // is exactly the kind of fake social proof that gets an app distrusted.
+  function unknownUser(){
+    return {id:0,name:t("unknownUser"),initial:"?",verified:false,online:false,seen:0,
+            call:false,whatsapp:false,number:"",since:"",locality:""};
+  }
   function mapUserFallback(id){
     for(var i=0;i<state.listings.length;i++){
       var o=state.listings[i].ownerObj;
       if(o && String(o.id)===String(id)) return o;
     }
-    return {id:id,name:"User",initial:"U",verified:false,since:"",locality:"",call:false,whatsapp:false};
+    return unknownUser();
   }
   function sellerOf(l){
     if(l.ownerObj) return l.ownerObj;          // live mode: real server user
-    return l.owner==="me" ? meSeller() : (SELLERS[l.owner]||SELLERS.ramesh);
+    return l.owner==="me" ? meSeller() : (l.ownerObj || unknownUser());
   }
   function meSeller(){ return {id:"me",name:state.user.name||"You",initial:(state.user.name||"Y")[0].toUpperCase(),verified:false,online:true,seen:0,call:state.user.call,whatsapp:state.user.whatsapp,number:state.user.phone?("+91"+state.user.phone):"",since:"today",locality:state.user.locality}; }
 
@@ -462,6 +466,17 @@
   /* ---------- SCREENS ---------- */
   var S = {};
 
+  S.offline=function(){
+    // The old behaviour was to fall back to an on-device demo when the server
+    // could not be reached. That is dishonest: a seller could "post" an ad,
+    // see a success screen, and the ad existed nowhere. Say what is true.
+    return '<section class="screen"><div class="empty" style="min-height:100%">'
+      +'<img src="assets/logo-badge.png" alt="" style="width:92px;height:92px;border-radius:26px">'
+      +'<h3>'+t("offlineTitle")+'</h3><p>'+t("offlineBody")+'</p>'
+      +'<button class="btn btn-primary sm" id="retry-conn" style="margin-top:14px">'
+      +I("search","ic-sm")+t("retry")+'</button></div></section>';
+  };
+
   S.welcome=function(){
     return '<section class="screen welcome"><div class="pad stagger" style="margin:auto 0">'
       +'<div class="brand">'
@@ -493,8 +508,7 @@
       +(live?'<div class="field"><label for="signin-name">'+t("yourName")+'</label>'
         +'<input class="input" id="signin-name" autocomplete="name" placeholder="Ramesh Kumar" value="'+esc(state.user.name||"")+'"></div>':"")
       +'<button class="btn btn-primary" id="send-otp">'+(live?t("continue"):t("sendOtp"))+I("chevron","ic-sm")+'</button>'
-      +(live?"":'<div class="divider">'+t("or")+'</div>'
-        +'<button class="btn btn-outline" id="google">'+I("google","ic-sm")+t("google")+'</button>')
+
       +'<p class="hint center" style="margin-top:16px">'+I("lock","ic-sm")+' '+t("privacyNote")+'</p>'
       +'</div></section>';
   };
@@ -519,11 +533,10 @@
       +'<div class="center" style="margin-bottom:18px"><div class="avatar" style="width:84px;height:84px;margin:0 auto">'+I("camera","ic-lg")+'</div>'
       +'<div class="hint">'+t("addPhoto")+'</div></div>'
       +'<div class="field" id="f-name"><label>'+t("yourName")+' <span class="req">*</span></label>'
-      +'<div class="input-icon">"+I("user","ic-sm")+"<input class="input" id="pname" placeholder="Ramesh Kumar" value="'+esc(state.user.name)+'"></div>'
+      +'<input class="input" id="pname" autocomplete="name" placeholder="Ramesh Kumar" value="'+esc(state.user.name)+'">'
       +'<div class="err-msg">'+t("errName")+'</div></div>'
       +'<div class="field"><label>'+t("yourLocation")+'</label>'
       +'<div class="input-icon"><input class="input" id="ploc" value="'+esc(state.user.locality)+'"></div></div>'
-      +'<p class="hint"><span class="demo-badge">DEMO</span> '+t("demoUnverified")+'</p>'
       +'<button class="btn btn-primary" id="save-profile" style="margin-top:8px">'+t("continue")+'</button>'
       +'</div></section>';
   };
@@ -681,7 +694,7 @@
   };
 
   S.seller=function(p){
-    var sel = p.id==="me"?meSeller():(SELLERS[p.id]||mapUserFallback(p.id));
+    var sel = p.id==="me"?meSeller():mapUserFallback(p.id);
     var ads = state.listings.filter(function(l){return String(sellerOf(l).id)===String(p.id)&&l.status==="active";});
     return '<section class="screen">'+bar({back:"home",title:t("sellerProfile")})
       +'<div class="seller-hero"><div class="avatar">'+esc(sel.initial)+'</div>'
@@ -815,7 +828,7 @@
 
   S.messages=function(){
     var body = state.convos.length ? '<div>'+state.convos.map(function(c){
-      var o=c.other||SELLERS[c.withKey]||{name:"User",initial:"U"};
+      var o=c.other||unknownUser();
       var l=byId(c.listing), last=c.msgs[c.msgs.length-1];
       return '<div class="thread" data-chat="'+c.id+'">'
         +'<div class="avatar">'+esc(o.initial||"U")+'</div>'
@@ -833,7 +846,7 @@
   S.chat=function(p){
     var c=convById(p.id); if(!c) return S.messages();
     c.unread=0; save();
-    var o=c.other||SELLERS[c.withKey]||{name:"User",initial:"U",online:false,seen:5};
+    var o=c.other||unknownUser();
     var l=byId(c.listing);
     return '<section class="screen">'
       +'<header class="appbar">'
@@ -983,7 +996,6 @@
     }
     tick(); resendTimer=setInterval(tick,1000);
   }
-  function genOtp(){ var c=""; for(var i=0;i<6;i++) c+= (i*7+3+(state.pendingPhone.charCodeAt(i%state.pendingPhone.length)||0))%10; return c.slice(0,6); }
 
   /* ---------- per-screen wiring ---------- */
   function wire(){
@@ -1006,10 +1018,10 @@
           }).catch(function(e){ btn.disabled=false; btn.textContent=t("continue"); apiFail(e); });
           return;
         }
-        state.pendingPhone=v; state.otp={code:genOtp(),attempts:0}; save();
-        toast(t("otpSent")); go("otp");
+        // No backend reachable: never pretend to sign anyone in.
+        go("offline");
       });
-      document.getElementById("google").addEventListener("click",function(){ state.pendingPhone="9999900000"; state.otp={code:genOtp(),attempts:0}; go("profile"); });
+
     }
     if(route==="otp"){
       var boxes=[].slice.call(document.querySelectorAll("[data-otp]"));
@@ -1074,6 +1086,15 @@
     }
     if(route==="chat") wireChat();
     if(route==="settings") wireSettings();
+    if(route==="offline"){
+      var rc=document.getElementById("retry-conn");
+      if(rc) rc.addEventListener("click",function(){
+        this.disabled=true; this.textContent=t("saving");
+        API.health().then(function(h){
+          if(h&&h.ok){ location.reload(); } else { go("offline"); }
+        }).catch(function(){ toast(t("offlineTitle")); go("offline"); });
+      });
+    }
     if(route==="myprofile"){
       var lo2=document.getElementById("logout");
       if(lo2) lo2.addEventListener("click",function(){
@@ -1704,14 +1725,14 @@
 
   if(API && API.enabled){
     API.health().then(function(h){
-      if(!h || !h.ok) return;
+      if(!h || !h.ok){ _go("offline"); return; }
       if(API.token){
         return API.me().then(function(r){ startLive(r.user); go("home");
                  setTimeout(function(){ maybeAskNotifications(); startNotifPolling(); subscribePush(); },900); })
                       .catch(function(){ API.setToken(null); state.onboarded=false; save(); _go("welcome"); });
       }
       state.onboarded=false; save(); _go("welcome");
-    }).catch(function(){ /* backend down -> stay in on-device demo */ });
+    }).catch(function(){ _go("offline"); });
   }
 
   if("serviceWorker" in navigator){
