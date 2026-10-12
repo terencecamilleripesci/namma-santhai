@@ -1297,8 +1297,10 @@
   function render(){
     document.documentElement.lang=lang;
     var fn=S[route]||S.home;
-    app().innerHTML = fn(params);
-    hideSplash();
+    var ap=app();
+    ap.classList.toggle("quiet", !!quietRender);
+    ap.innerHTML = fn(params);
+    if(bootReady) hideSplash();
     renderNav(route);
     wire();
     save();
@@ -2190,11 +2192,23 @@
 
   // Wrap the router so live screens fetch before painting.
   var _go = go;
-  go = function(r,p){
-    if(!LIVE) return _go(r,p);
-    _go(r,p);                                   // paint immediately (cached data)
-    syncFor(r).then(function(){ if(route===r) _go(r,p); });
+  var navSeq = 0;
+  go = function(r,p,o){
+    if(!LIVE) return _go(r,p,o);
+    var seq = ++navSeq;
+    _go(r,p,o);                                 // paint immediately (cached data)
+    syncFor(r).then(function(){ if(route===r && seq===navSeq) settle(); });
   };
+  // Fresh data arrived for the screen already showing: redraw it in place.
+  // No entrance animations, no jump back to the top - otherwise every screen
+  // visibly loads twice.
+  function settle(){
+    var ap=app(), sc=ap?ap.scrollTop:0, wy=window.scrollY;
+    quietRender=true;
+    try{ render(); } finally{ quietRender=false; }
+    if(ap) ap.scrollTop=sc;
+    window.scrollTo(0,wy);
+  }
 
   function startLive(user){
     LIVE = true;
@@ -2216,6 +2230,7 @@
      away once a real screen exists. A minimum on-screen time stops it
      strobing on a fast connection. */
   var SPLASH_MIN = 650, bootAt = Date.now(), splashDone = false;
+  var bootReady = false, quietRender = false;
   function hideSplash(){
     if(splashDone) return;
     splashDone = true;
@@ -2228,7 +2243,10 @@
     }, wait);
   }
   // Never let a hung request leave someone staring at a logo.
-  setTimeout(hideSplash, 6000);
+  setTimeout(function(){
+    if(!bootReady){ bootReady=true; if(!app().innerHTML.trim()) _go(startRoute, startParams); }
+    hideSplash();
+  }, 8000);
 
   /* ---------- boot ---------- */
   load();
@@ -2237,21 +2255,44 @@
   var deep = hashToRoute();
   var PUBLIC_DEEP = {listing:1, seller:1, browse:1};
   if(deep && !PUBLIC_DEEP[deep.route]) deep = null;
-  _go(state.onboarded ? (deep ? deep.route : "home") : "welcome",
-      deep ? deep.params : {});
+  var startRoute = state.onboarded ? (deep ? deep.route : "home") : "welcome";
+  var startParams = deep ? deep.params : {};
   if(deep && !state.onboarded) state.pendingDeep = deep;
+  // With a saved login the cached screen is stale and is about to be replaced,
+  // so painting it only produces a flash and a reload. The splash covers the
+  // wait instead and the real screen is painted once.
+  var liveBoot = !!(API && API.enabled && API.token);
+  if(!liveBoot){ bootReady = true; _go(startRoute, startParams); }
+
+  // Settle on the first real screen; skip the paint if it is already showing.
+  function finishBoot(r, p){
+    var first = !bootReady;
+    bootReady = true;
+    if(first || route!==r) _go(r, p||{});
+    else if(p && p!==params) _go(r, p);
+    else hideSplash();
+  }
 
   if(API && API.enabled){
     API.health().then(function(h){
-      if(!h || !h.ok){ _go("offline"); return; }
-      if(API.token){
-        return API.me().then(function(r){ startLive(r.user);
-                 var pd=hashToRoute(); go(pd&&PUBLIC_DEEP[pd.route]?pd.route:"home", pd?pd.params:{});
-                 setTimeout(function(){ maybeAskNotifications(); startNotifPolling(); subscribePush(); },900); })
-                      .catch(function(){ API.setToken(null); state.onboarded=false; save(); _go("welcome"); });
-      }
-      state.onboarded=false; save(); _go("welcome");
-    }).catch(function(){ _go("offline"); });
+      if(!h || !h.ok){ finishBoot("offline"); return; }
+      if(!API.token){ state.onboarded=false; save(); finishBoot("welcome"); return; }
+      return API.me().then(function(r){
+        startLive(r.user);
+        var pd=hashToRoute();
+        var rr = pd&&PUBLIC_DEEP[pd.route] ? pd.route : "home", pp = pd ? pd.params : {};
+        route=rr; params=pp;                    // syncFor reads the target screen
+        return syncFor(rr).catch(function(){}).then(function(){
+          if(bootReady && route===rr) settle(); else finishBoot(rr, pp);
+          setTimeout(function(){ maybeAskNotifications(); startNotifPolling(); subscribePush(); },900);
+        });
+      }, function(e){
+        // Only a rejected login signs you out; a network blip must not.
+        if(e && (e.status===401 || e.status===403)){
+          API.setToken(null); state.onboarded=false; save(); finishBoot("welcome");
+        } else finishBoot("offline");
+      });
+    }).catch(function(e){ console.error(e); finishBoot("offline"); });
   }
 
   if("serviceWorker" in navigator){

@@ -850,3 +850,9 @@ select.input{appearance:none;padding-right:40px;
     animation:none!important;}
   .card .media img{transition:none!important;}
 }
+
+/* Quiet refresh: when fresh data redraws the screen already showing, every
+   entrance animation is skipped to its end state (a negative delay finishes
+   one-shot animations instantly and only phase-shifts the looping ones), so
+   the screen updates in place instead of visibly loading a second time. */
+.viewport.quiet *,.viewport.quiet *::before,.viewport.quiet *::after{animation-delay:-30s!important;}
