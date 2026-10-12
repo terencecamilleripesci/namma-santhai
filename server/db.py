@@ -138,6 +138,27 @@ CREATE TABLE IF NOT EXISTS push_subs (
 );
 CREATE INDEX IF NOT EXISTS ix_push_user ON push_subs(user_id);
 
+-- Social: a public like count and comments on a listing. Separate from the
+-- private "saved" list - a like is visible to everyone and is what gives a
+-- seller a signal that their ad is working.
+CREATE TABLE IF NOT EXISTS likes (
+  listing_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (listing_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS ix_likes_listing ON likes(listing_id);
+
+CREATE TABLE IF NOT EXISTS comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  listing_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  body TEXT NOT NULL,
+  hidden INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_comments_listing ON comments(listing_id, created_at);
+
 -- Trust & safety. A marketplace without a way to report a listing or block a
 -- person is not shippable: it is a Play policy requirement for user content,
 -- and on a livestock market where advance-payment fraud is the number one scam

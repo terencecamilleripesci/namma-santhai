@@ -96,6 +96,12 @@ window.NS_API = (function () {
     deleteListing: function (id) { return req("DELETE", "/api/listings/" + id); },
     seller: function (id) { return req("GET", "/api/users/" + id); },
 
+    like: function (id) { return req("POST", "/api/listings/" + id + "/like"); },
+    unlike: function (id) { return req("DELETE", "/api/listings/" + id + "/like"); },
+    comments: function (id) { return req("GET", "/api/listings/" + id + "/comments"); },
+    addComment: function (id, body) { return req("POST", "/api/listings/" + id + "/comments", { body: body }); },
+    deleteComment: function (id) { return req("DELETE", "/api/comments/" + id); },
+
     reportListing: function (id, reason, detail) { return req("POST", "/api/listings/" + id + "/report", { reason: reason, detail: detail || "" }); },
     blockUser: function (id) { return req("POST", "/api/users/" + id + "/block"); },
     unblockUser: function (id) { return req("DELETE", "/api/users/" + id + "/block"); },

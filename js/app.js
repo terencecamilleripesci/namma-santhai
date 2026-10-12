@@ -132,6 +132,12 @@
       accountSuspended:"Account suspended", accountRestored:"Account restored",
       cannotChangeAdmin:"Administrator accounts cannot be suspended here.",
       exportCsv:"Download member list (CSV)",
+      like:"Like", post:"Post",
+      nLike:"Someone liked your ad", nComment:"New comment on your ad",
+      commentsTitle:"Questions & comments", noComments:"No comments yet. Ask the seller something.",
+      commentPh:"Ask a question...", commentAdded:"Comment posted",
+      commentRemoved:"Comment removed",
+      confirmDeleteComment:"Delete this comment?",
       report:"Report", block:"Block",
       reportTitle:"Report this listing", reportSub:"Our team reviews every report.",
       reasonScam:"Scam or asking for advance payment",
@@ -508,6 +514,35 @@
   /* ---------- SCREENS ---------- */
   var S = {};
 
+  function commentsHtml(list){
+    if(list===null) return '<div class="c-load">'+t("saving")+'</div>';
+    if(!list.length) return '<p class="hint" style="padding:4px 0 10px">'+t("noComments")+'</p>';
+    return list.map(function(c){
+      return '<div class="cmt" data-cid="'+c.id+'">'
+        +'<div class="avatar" style="width:34px;height:34px;flex:0 0 34px;font-size:14px">'
+        +esc((c.user.name||"?")[0].toUpperCase())+'</div>'
+        +'<div class="cbody"><div class="cn">'+esc(c.user.name||t("unknownUser"))
+        +'<span class="ct">'+esc(timeAgo(c.at,lang))+'</span></div>'
+        +'<div class="cx">'+esc(c.body)+'</div></div>'
+        +(c.mine||c.canDelete?'<button class="c-del" data-delcomment="'+c.id+'" aria-label="'+t("del")+'">'
+          +I("trash","ic-sm")+'</button>':"")
+        +'</div>';
+    }).join("");
+  }
+
+  function loadComments(lid){
+    if(!LIVE) return;
+    state.commentsFor=lid; state.comments=null;
+    API.comments(lid).then(function(r){
+      state.commentsFor=lid; state.comments=r.comments||[];
+      var host=document.getElementById("comment-list");
+      if(host && route==="listing") host.innerHTML=commentsHtml(state.comments);
+    }).catch(function(){
+      var host=document.getElementById("comment-list");
+      if(host) host.innerHTML='<p class="hint">'+t("offlineTitle")+'</p>';
+    });
+  }
+
   function openReportSheet(lid){
     var reasons=[["scam","reasonScam"],["fake","reasonFake"],
                  ["offensive","reasonOffensive"],["sold","reasonSold"],["other","reasonOther"]];
@@ -615,12 +650,15 @@
       +'<div class="thumb">'+media(l,"",true)
       +(mine?'<span class="tag">'+t("tab"+l.status.charAt(0).toUpperCase()+l.status.slice(1))+'</span>'
             :(fresh?'<span class="tag new">'+t("tagNew")+'</span>':""))
-      +'<button class="fav'+(isFav(l.id)?" on":"")+'" data-fav="'+l.id+'" aria-label="'+t("save")+'">'
-      +I("heart","ic-sm")+'</button></div>'
+      +'<button class="fav'+(l.liked?" on":"")+'" data-like="'+l.id+'" aria-label="'+t("like")+'">'
+      +I("heart","ic-sm")+(l.likes?'<span class="lk">'+l.likes+'</span>':"")+'</button></div>'
       +'<div class="body">'
       +'<div class="price">'+INR(l.price)+'</div>'
       +'<div class="title">'+esc(l.title)+'</div>'
       +'<div class="loc">'+I("pin")+'<span>'+esc(l.loc.locality||"")+'</span></div>'
+      +((l.likes||l.comments)?'<div class="social">'
+        +(l.likes?'<span>'+I("heart","ic-sm")+l.likes+'</span>':"")
+        +(l.comments?'<span>'+I("chat","ic-sm")+l.comments+'</span>':"")+'</div>':"")
       +'</div></article>';
   }
 
@@ -736,7 +774,7 @@
       +'<div class="hero-top">'
       +'<button class="cbtn" data-go="home" aria-label="Back">'+I("back")+'</button>'
       +'<span class="row" style="gap:8px">'
-      +'<button class="cbtn'+(isFav(l.id)?" on":"")+'" data-fav="'+l.id+'" aria-label="'+t("save")+'">'+I("heart")+'</button>'
+      +'<button class="cbtn'+(l.liked?" on":"")+'" data-like="'+l.id+'" aria-label="'+t("like")+'">'+I("heart")+'</button>'
       +'<button class="cbtn" data-share="'+l.id+'" aria-label="Share">'+I("share")+'</button></span></div>'
       + media(l)
       +(l.photos&&l.photos.length>1?'<span class="hero-count">1 / '+l.photos.length+'</span>':"")+'</div>'
@@ -757,6 +795,15 @@
       +'<div class="ssince">'+t("memberSince")+' '+esc(sel.since)+'</div></div>'
       +'<span class="chev">'+I("chevron","ic-sm")+'</span></div>'
       +'<div class="safety">'+I("shield")+'<span>'+t("safety")+'</span></div>'
+      +'<section class="comments" id="comments">'
+      +'<h2 class="h2" style="margin:20px 0 10px">'+t("commentsTitle")
+      +(l.comments?' <span class="cnum">'+l.comments+'</span>':"")+'</h2>'
+      +'<div id="comment-list">'+commentsHtml(
+          (state.comments&&String(state.commentsFor)===String(l.id))?state.comments:null)+'</div>'
+      +'<div class="comment-box">'
+      +'<input id="comment-text" maxlength="600" placeholder="'+t("commentPh")+'" aria-label="'+t("commentPh")+'">'
+      +'<button class="send" id="comment-send" data-lid="'+l.id+'" aria-label="'+t("post")+'">'+I("send","ic-sm")+'</button>'
+      +'</div></section>'
       +(isMine?"":'<div class="row" style="gap:8px;margin-top:4px">'
         +'<button class="btn btn-outline sm grow" data-report="'+l.id+'">'+I("alert","ic-sm")+t("report")+'</button>'
         +'<button class="btn btn-outline sm grow" data-block="'+sel.id+'">'+I("close","ic-sm")+t("block")+'</button></div>')
@@ -878,7 +925,8 @@
   };
 
   S.notifications=function(){
-    var map={approved:["ok","checkCircle","nApproved"],rejected:["warn","alert","nRejected"],
+    var map={like:["new","heart","nLike"],comment:["msg","chat","nComment"],
+             approved:["ok","checkCircle","nApproved"],rejected:["warn","alert","nRejected"],
              message:["msg","chat","nMessage"],nearby:["new","sparkle","nNearby"]};
     var body = state.notifs.length ? '<div>'+state.notifs.map(function(n){
       var m=map[n.type]||map.nearby;
@@ -1402,6 +1450,29 @@
       });
     }
     if(route==="settings") wireSettings();
+    if(route==="listing" && params && params.id){
+      loadComments(params.id);
+      var ci=document.getElementById("comment-text");
+      var cs=document.getElementById("comment-send");
+      function postComment(){
+        var v=(ci.value||"").trim(); if(!v) return;
+        if(!LIVE){ toast(t("offlineTitle")); return; }
+        cs.disabled=true;
+        API.addComment(params.id,v).then(function(r){
+          ci.value=""; cs.disabled=false;
+          state.comments=(state.comments||[]).concat([r.comment]);
+          var host=document.getElementById("comment-list");
+          if(host){
+            host.innerHTML=commentsHtml(state.comments);
+            var last=host.lastElementChild;
+            if(last) last.classList.add("cmt-new");
+          }
+          toast(t("commentAdded"));
+        }).catch(function(e){ cs.disabled=false; apiFail(e); });
+      }
+      if(cs) cs.addEventListener("click",postComment);
+      if(ci) ci.addEventListener("keydown",function(e){ if(e.key==="Enter") postComment(); });
+    }
     if(route==="offline"){
       var rc=document.getElementById("retry-conn");
       if(rc) rc.addEventListener("click",function(){
@@ -1597,12 +1668,39 @@
 
   /* ---------- global delegation ---------- */
   document.addEventListener("click",function(e){
-    var el=e.target.closest("[data-go],[data-setlang],[data-open],[data-chip],[data-seller],[data-chat],[data-msg],[data-call],[data-wa],[data-share],[data-notif],[data-edit],[data-sold],[data-del],[data-mytab],[data-toggle],[data-approve],[data-reject],[data-confirm-reject],[data-noop],[data-fav],[data-radius],[data-report],[data-block],[data-report-reason],[data-sheet-close],[data-rep-act],[data-user],[data-ustatus],[data-ustat]");
+    var el=e.target.closest("[data-go],[data-setlang],[data-open],[data-chip],[data-seller],[data-chat],[data-msg],[data-call],[data-wa],[data-share],[data-notif],[data-edit],[data-sold],[data-del],[data-mytab],[data-toggle],[data-approve],[data-reject],[data-confirm-reject],[data-noop],[data-fav],[data-radius],[data-report],[data-block],[data-report-reason],[data-sheet-close],[data-rep-act],[data-user],[data-ustatus],[data-ustat],[data-like],[data-delcomment]");
     if(!el) return;
     if(el.hasAttribute("data-noop")){ return; }
     var g=el.getAttribute("data-go"); if(g){ go(g); return; }
     var sl=el.getAttribute("data-setlang"); if(sl){ lang=sl; save(); toast(t("langToast")); render(); return; }
     if(el.hasAttribute("data-sheet-close")){ closeSheet(); return; }
+    var lk=el.getAttribute("data-like");
+    if(lk){
+      if(!LIVE){ toast(t("offlineTitle")); return; }
+      var on=!el.classList.contains("on");
+      el.classList.toggle("on",on);
+      el.classList.remove("burst"); void el.offsetWidth; if(on) el.classList.add("burst");
+      (on?API.like(lk):API.unlike(lk)).then(function(r){
+        var li=byId(lk);
+        if(li){ li.liked=r.liked; li.likes=r.likes; save(); }
+        var n=el.querySelector(".lk");
+        if(r.likes){ if(n) n.textContent=r.likes;
+                     else el.insertAdjacentHTML("beforeend",'<span class="lk">'+r.likes+'</span>'); }
+        else if(n){ n.remove(); }
+      }).catch(function(e){ el.classList.toggle("on",!on); apiFail(e); });
+      return;
+    }
+    var dc=el.getAttribute("data-delcomment");
+    if(dc){
+      if(!window.confirm(t("confirmDeleteComment"))) return;
+      API.deleteComment(dc).then(function(){
+        state.comments=(state.comments||[]).filter(function(c){return String(c.id)!==String(dc);});
+        var host=document.getElementById("comment-list");
+        if(host) host.innerHTML=commentsHtml(state.comments);
+        toast(t("commentRemoved"));
+      }).catch(apiFail);
+      return;
+    }
     var rp=el.getAttribute("data-report"); if(rp){ openReportSheet(rp); return; }
     var rr=el.getAttribute("data-report-reason");
     if(rr){
@@ -1960,6 +2058,7 @@
       photos:(s.photos||[]).map(function(p){return API.mediaUrl(p);}),
       thumbs:(s.thumbs||s.photos||[]).map(function(p){return API.mediaUrl(p);}),
       createdTs:s.created_at||0,
+      likes:s.likes||0, liked:!!s.liked, comments:s.comments||0,
       loc:{mode:(s.loc&&s.loc.lat)?"gps":"manual", district:(s.loc&&s.loc.district)||"",
            village:(s.loc&&s.loc.village)||"",
            locality:(s.loc&&(s.loc.locality|| [s.loc.village,s.loc.district].filter(Boolean).join(", ")))||"",

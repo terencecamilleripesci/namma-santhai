@@ -68,6 +68,8 @@ def main():
         return
 
     for lid in titles:
+        con.execute("DELETE FROM likes WHERE listing_id=?", (lid,))
+        con.execute("DELETE FROM comments WHERE listing_id=?", (lid,))
         for tbl, col in (("media", "listing_id"), ("notifications", "listing_id")):
             con.execute("DELETE FROM %s WHERE %s=?" % (tbl, col), (lid,))
         con.execute("DELETE FROM messages WHERE conv_id IN "
@@ -76,6 +78,9 @@ def main():
         con.execute("DELETE FROM reports WHERE listing_id=?", (lid,))
         con.execute("DELETE FROM listings WHERE id=?", (lid,))
     for uid, _, _ in victims:
+        # likes and comments a fixture left on a REAL seller's ad
+        con.execute("DELETE FROM likes WHERE user_id=?", (uid,))
+        con.execute("DELETE FROM comments WHERE user_id=?", (uid,))
         for tbl in ("push_subs", "notifications", "sessions"):
             con.execute("DELETE FROM %s WHERE user_id=?" % tbl, (uid,))
         con.execute("DELETE FROM messages WHERE sender_id=?", (uid,))
@@ -85,6 +90,12 @@ def main():
         con.execute("DELETE FROM reports WHERE reporter_id=? OR reported_user_id=?", (uid, uid))
         con.execute("DELETE FROM blocks WHERE blocker_id=? OR blocked_id=?", (uid, uid))
         con.execute("DELETE FROM users WHERE id=?", (uid,))
+    # Rows whose owner no longer exists. A like from a deleted account still
+    # counted on a real seller's ad, which inflates their numbers with ghosts.
+    orphan_l = con.execute("DELETE FROM likes WHERE user_id NOT IN (SELECT id FROM users)").rowcount
+    orphan_c = con.execute("DELETE FROM comments WHERE user_id NOT IN (SELECT id FROM users)").rowcount
+    if orphan_l or orphan_c:
+        print("removed %d orphan like(s), %d orphan comment(s)" % (orphan_l, orphan_c))
     con.commit()
     print("\nremaining accounts:")
     for r in con.execute("SELECT phone,name,role FROM users ORDER BY id"):

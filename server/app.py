@@ -535,6 +535,13 @@ def listing_json(con, r, viewer=None):
         specs = json.loads(r["specs"] or "{}")
     except Exception:
         specs = {}
+    likes = con.execute("SELECT COUNT(*) FROM likes WHERE listing_id=?", (r["id"],)).fetchone()[0]
+    ncom = con.execute("SELECT COUNT(*) FROM comments WHERE listing_id=? AND hidden=0",
+                       (r["id"],)).fetchone()[0]
+    liked = False
+    if viewer:
+        liked = bool(con.execute("SELECT 1 FROM likes WHERE listing_id=? AND user_id=?",
+                                 (r["id"], viewer)).fetchone())
     return {
         "id": r["id"], "type": r["type"], "category": r["category"], "title": r["title"],
         "desc": r["description"], "price": r["price"], "unit": r["unit"], "qty": r["qty"],
@@ -543,6 +550,7 @@ def listing_json(con, r, viewer=None):
         "loc": {"district": r["district"], "village": r["village"],
                 "locality": r["locality"], "lat": r["lat"], "lon": r["lon"]},
         "photos": photos, "thumbs": thumbs,
+        "likes": likes, "liked": liked, "comments": ncom,
         "owner": public_user(D.row_to_dict(owner)),
     }
 
@@ -575,7 +583,8 @@ def list_listings():
     rows = con.execute(sql, args).fetchall()
     viewer = current_user()
     hidden = blocked_ids(con, viewer["id"]) if viewer else set()
-    out = [listing_json(con, r) for r in rows if r["owner_id"] not in hidden]
+    vid = viewer["id"] if viewer else None
+    out = [listing_json(con, r, vid) for r in rows if r["owner_id"] not in hidden]
     con.close()
     return jsonify({"listings": out})
 
@@ -601,7 +610,8 @@ def get_listing(lid):
     con.execute("UPDATE listings SET views=views+1 WHERE id=?", (lid,))
     con.commit()
     r = con.execute("SELECT * FROM listings WHERE id=?", (lid,)).fetchone()
-    out = listing_json(con, r)
+    v = current_user()
+    out = listing_json(con, r, v["id"] if v else None)
     con.close()
     return jsonify({"listing": out})
 
@@ -828,6 +838,107 @@ def media(key):
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Content-Disposition"] = "inline"
     return resp
+
+
+# ------------------------------------------------------------- social
+@app.post("/api/listings/<int:lid>/like")
+@require_auth
+def like_listing(lid):
+    con = D.connect()
+    li = con.execute("SELECT * FROM listings WHERE id=?", (lid,)).fetchone()
+    if not li:
+        con.close(); return err("not_found", "Listing not found", 404)
+    con.execute("INSERT OR IGNORE INTO likes(listing_id,user_id,created_at) VALUES(?,?,?)",
+                (lid, g.user["id"], D.now()))
+    # A like is in-app only. Pushing one would buzz a seller's phone for every
+    # tap, which is how people turn notifications off entirely.
+    if li["owner_id"] != g.user["id"]:
+        already = con.execute(
+            "SELECT 1 FROM notifications WHERE user_id=? AND type='like' AND listing_id=?",
+            (li["owner_id"], lid)).fetchone()
+        if not already:
+            notify(con, li["owner_id"], "like", listing_id=lid,
+                   payload={"title": li["title"]}, push=False)
+    con.commit()
+    n = con.execute("SELECT COUNT(*) FROM likes WHERE listing_id=?", (lid,)).fetchone()[0]
+    con.close()
+    return jsonify({"ok": True, "liked": True, "likes": n})
+
+
+@app.delete("/api/listings/<int:lid>/like")
+@require_auth
+def unlike_listing(lid):
+    con = D.connect()
+    con.execute("DELETE FROM likes WHERE listing_id=? AND user_id=?", (lid, g.user["id"]))
+    con.commit()
+    n = con.execute("SELECT COUNT(*) FROM likes WHERE listing_id=?", (lid,)).fetchone()[0]
+    con.close()
+    return jsonify({"ok": True, "liked": False, "likes": n})
+
+
+@app.get("/api/listings/<int:lid>/comments")
+def list_comments(lid):
+    con = D.connect()
+    viewer = current_user()
+    hidden = blocked_ids(con, viewer["id"]) if viewer else set()
+    rows = con.execute(
+        "SELECT c.*, u.name, u.photo FROM comments c JOIN users u ON u.id=c.user_id "
+        "WHERE c.listing_id=? AND c.hidden=0 ORDER BY c.created_at ASC LIMIT 200",
+        (lid,)).fetchall()
+    out = [{"id": r["id"], "body": r["body"], "at": r["created_at"],
+            "user": {"id": r["user_id"], "name": r["name"] or ""},
+            "mine": bool(viewer and viewer["id"] == r["user_id"])}
+           for r in rows if r["user_id"] not in hidden]
+    con.close()
+    return jsonify({"comments": out})
+
+
+@app.post("/api/listings/<int:lid>/comments")
+@require_auth
+def add_comment(lid):
+    body = str((request.get_json(silent=True) or {}).get("body", "")).strip()
+    if not body:
+        return err("empty", "Write something first")
+    if len(body) > 600:
+        body = body[:600]
+    con = D.connect()
+    li = con.execute("SELECT * FROM listings WHERE id=?", (lid,)).fetchone()
+    if not li:
+        con.close(); return err("not_found", "Listing not found", 404)
+    recent = con.execute(
+        "SELECT COUNT(*) FROM comments WHERE user_id=? AND created_at>?",
+        (g.user["id"], D.now() - 60)).fetchone()[0]
+    if recent >= 5:
+        con.close(); return err("too_fast", "Please slow down", 429)
+    cur = con.execute(
+        "INSERT INTO comments(listing_id,user_id,body,created_at) VALUES(?,?,?,?)",
+        (lid, g.user["id"], body, D.now()))
+    if li["owner_id"] != g.user["id"]:
+        notify(con, li["owner_id"], "comment", listing_id=lid,
+               payload={"title": li["title"], "preview": body[:60]})
+    con.commit()
+    out = {"id": cur.lastrowid, "body": body, "at": D.now(),
+           "user": {"id": g.user["id"], "name": g.user["name"] or ""}, "mine": True}
+    con.close()
+    return jsonify({"comment": out}), 201
+
+
+@app.delete("/api/comments/<int:cid>")
+@require_auth
+def delete_comment(cid):
+    con = D.connect()
+    row = con.execute("SELECT c.*, l.owner_id AS lowner FROM comments c "
+                      "JOIN listings l ON l.id=c.listing_id WHERE c.id=?", (cid,)).fetchone()
+    if not row:
+        con.close(); return err("not_found", "Comment not found", 404)
+    # the author, the seller whose ad it is, or an admin
+    allowed = (row["user_id"] == g.user["id"] or row["lowner"] == g.user["id"]
+               or g.user.get("role") == "admin")
+    if not allowed:
+        con.close(); return err("forbidden", "Not your comment", 403)
+    con.execute("DELETE FROM comments WHERE id=?", (cid,))
+    con.commit(); con.close()
+    return jsonify({"ok": True})
 
 
 # ------------------------------------------------------- trust & safety
@@ -1139,7 +1250,7 @@ def push_to_user(user_id, title, body, url="./", tag=None):
     return sent
 
 
-def notify(con, user_id, typ, listing_id=None, conv_id=None, payload=None):
+def notify(con, user_id, typ, listing_id=None, conv_id=None, payload=None, push=True):
     con.execute("INSERT INTO notifications(user_id,type,listing_id,conv_id,payload,created_at) "
                 "VALUES(?,?,?,?,?,?)",
                 (user_id, typ, listing_id, conv_id, json.dumps(payload or {}), D.now()))
@@ -1147,10 +1258,11 @@ def notify(con, user_id, typ, listing_id=None, conv_id=None, payload=None):
     title = {"message": "New message", "approved": "Ad approved",
              "rejected": "Ad rejected"}.get(typ, "New near you")
     body = p.get("preview") or p.get("title") or p.get("reason") or ""
-    try:
-        push_to_user(user_id, title, body, "./", tag=typ)
-    except Exception:                                # never let push break the write
-        pass
+    if push:
+        try:
+            push_to_user(user_id, title, body, "./", tag=typ)
+        except Exception:                            # never let push break the write
+            pass
 
 
 @app.post("/api/admin/listings/<int:lid>/approve")
