@@ -116,6 +116,22 @@
       legal:"Legal", exportData:"Download my data",
       exportSub:"Everything we hold about you, as a file",
       exportDone:"Your data file has been downloaded",
+      staffDash:"Staff dashboard", staffSub:"Members, listings and reports",
+      statUsers:"Members", statActive:"Active", statLive:"Live ads",
+      statPending:"Pending", statMessages:"Messages", statReports:"Reports",
+      thisWeek:"this week", last7:"last 7 days", awaiting:"awaiting review", open:"open",
+      suspendedAccounts:"suspended accounts", byCategory:"Live ads by category",
+      manage:"Manage", userRegister:"Member register", accounts:"accounts",
+      searchUsers:"Search name, number or village", noUsers:"No accounts match",
+      filter_all:"All", filter_active:"Active", filter_suspended:"Suspended",
+      live:"live", joined:"joined", lastSeen:"Last seen", daysAgo:"days ago",
+      account:"Account", status:"Status", activeStatus:"Active", suspended:"Suspended",
+      reportsAgainst:"Reports against", yes:"Yes", no:"No",
+      suspendAccount:"Suspend account", restoreAccount:"Restore account",
+      confirmSuspend:"Suspend this account? They will be signed out and their live ads taken down.",
+      accountSuspended:"Account suspended", accountRestored:"Account restored",
+      cannotChangeAdmin:"Administrator accounts cannot be suspended here.",
+      exportCsv:"Download member list (CSV)",
       report:"Report", block:"Block",
       reportTitle:"Report this listing", reportSub:"Our team reviews every report.",
       reasonScam:"Scam or asking for advance payment",
@@ -983,10 +999,10 @@
           +'</div>'
         : '<div class="prow"><div class="pic">'+I("shield")+'</div><div class="pl"><div class="plt">'+t("adminMode")+'</div></div>'
           +'<button class="switch '+(state.role==="admin"?"on":"")+'" data-admin role="switch" aria-checked="'+(state.role==="admin")+'"></button></div>')
-      +(state.role==="admin"?'<div class="prow" data-go="admin"><div class="pic">'+I("inbox")+'</div>'
-        +'<div class="pl"><div class="plt">'+t("adminQueue")+'</div></div><span class="chev">'+I("chevron","ic-sm")+'</span></div>'
-        +'<div class="prow" data-go="reports"><div class="pic" style="background:var(--danger-bg);color:var(--danger)">'+I("alert")+'</div>'
-        +'<div class="pl"><div class="plt">'+t("reports")+'</div></div><span class="chev">'+I("chevron","ic-sm")+'</span></div>':"")
+      +(state.role==="admin"?'<div class="prow" data-go="staff"><div class="pic">'+I("shop")+'</div>'
+        +'<div class="pl"><div class="plt">'+t("staffDash")+'</div>'
+        +'<div class="pls">'+t("staffSub")+'</div></div>'
+        +'<span class="chev">'+I("chevron","ic-sm")+'</span></div>':"")
       +'<div class="group-title">'+t("legal")+'</div>'
       +'<a class="prow" href="legal/privacy.html" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">'
       +'<div class="pic">'+I("lock")+'</div><div class="pl"><div class="plt">'+t("privacy")+'</div></div>'
@@ -1052,12 +1068,141 @@
       +body+'<div style="height:16px"></div></section>';
   };
 
+  /* ---------------- STAFF / ADMIN: the register ---------------- */
+  function fmtDate(ts){
+    if(!ts) return "-";
+    return new Date(ts*1000).toLocaleDateString(lang==="ta"?"ta-IN":"en-IN",
+      {day:"2-digit",month:"short",year:"numeric"});
+  }
+  function sinceText(ts){
+    if(!ts) return "-";
+    var m=Math.max(0,(Date.now()/1000-ts)/60);
+    if(m<60) return Math.round(m)+" "+t("minAgo");
+    if(m<1440) return Math.round(m/60)+" "+t("hrAgo");
+    return Math.round(m/1440)+" "+t("daysAgo");
+  }
+
+  S.staff=function(){
+    var st=state.stats||{};
+    function tile(label,val,sub){
+      return '<div class="stat"><div class="sv">'+(val==null?"-":val)+'</div>'
+        +'<div class="sl">'+label+'</div>'+(sub?'<div class="ss">'+sub+'</div>':"")+'</div>';
+    }
+    var cats=st.by_category||[];
+    var max=cats.length?Math.max.apply(null,cats.map(function(x){return x.n;})):1;
+    return '<section class="screen">'+bar({back:"settings",title:t("staffDash")})
+      +'<div class="stats-grid">'
+      + tile(t("statUsers"), st.users, "+"+(st.users_new_7d||0)+" "+t("thisWeek"))
+      + tile(t("statActive"), st.users_active_7d, t("last7"))
+      + tile(t("statLive"), st.listings_active, (st.listings_new_7d||0)+" "+t("thisWeek"))
+      + tile(t("statPending"), st.listings_pending, t("awaiting"))
+      + tile(t("statMessages"), st.messages_7d, t("last7"))
+      + tile(t("statReports"), st.reports_open, t("open"))
+      +'</div>'
+      +(st.users_suspended?'<div class="safety" style="background:var(--danger-bg);border-color:#f0c8c4;color:#8d2b22">'
+        +I("alert")+'<span>'+st.users_suspended+' '+t("suspendedAccounts")+'</span></div>':"")
+      +'<div class="group-title">'+t("byCategory")+'</div>'
+      +'<div class="catbars">'+(cats.length
+        ? cats.map(function(c){
+            return '<div class="catbar"><span class="cb-l">'+cat(c.category)+'</span>'
+              +'<span class="cb-t"><span class="cb-f" style="width:'+Math.round(c.n/max*100)+'%"></span></span>'
+              +'<span class="cb-n">'+c.n+'</span></div>';
+          }).join("")
+        : '<p class="hint">'+t("noneHere")+'</p>')+'</div>'
+      +'<div class="group-title">'+t("manage")+'</div>'
+      +'<div class="prow" data-go="users"><div class="pic">'+I("user")+'</div>'
+      +'<div class="pl"><div class="plt">'+t("userRegister")+'</div>'
+      +'<div class="pls">'+(st.users||0)+' '+t("accounts")+'</div></div>'
+      +'<span class="chev">'+I("chevron","ic-sm")+'</span></div>'
+      +'<div class="prow" data-go="admin"><div class="pic">'+I("inbox")+'</div>'
+      +'<div class="pl"><div class="plt">'+t("adminQueue")+'</div></div>'
+      +'<span class="chev">'+I("chevron","ic-sm")+'</span></div>'
+      +'<div class="prow" data-go="reports"><div class="pic" style="background:var(--danger-bg);color:var(--danger)">'+I("alert")+'</div>'
+      +'<div class="pl"><div class="plt">'+t("reports")+'</div>'
+      +'<div class="pls">'+(st.reports_open||0)+' '+t("open")+'</div></div>'
+      +'<span class="chev">'+I("chevron","ic-sm")+'</span></div>'
+      +'<div class="pad"><button class="btn btn-outline" id="dl-users">'+I("download","ic-sm")+t("exportCsv")+'</button></div>'
+      +'</section>';
+  };
+
+  S.users=function(){
+    var data=state.adminUsers||{users:[],total:0};
+    var rows=data.users.map(function(u){
+      return '<div class="urow" data-user="'+u.id+'">'
+        +'<div class="avatar">'+esc((u.name||"?")[0].toUpperCase())+'</div>'
+        +'<div class="ubody"><div class="un">'+esc(u.name||t("unknownUser"))
+        +(u.role==="admin"?'<span class="pill active" style="margin-left:6px">'+t("adminMode")+'</span>':"")
+        +(u.status==="suspended"?'<span class="pill rejected" style="margin-left:6px">'+t("suspended")+'</span>':"")
+        +'</div>'
+        +'<div class="up">'+esc(u.phone)+'</div>'
+        +'<div class="um">'+I("pin")+' '+esc(u.locality||"-")+'</div>'
+        +'<div class="um">'+u.active_listings+' '+t("live")+' \u00b7 '+u.listings+' '+t("totalAds")
+        +' \u00b7 '+t("joined")+' '+fmtDate(u.created_at)+'</div></div>'
+        +'<span class="chev">'+I("chevron","ic-sm")+'</span></div>';
+    }).join("");
+    return '<section class="screen">'
+      +bar({back:"staff",title:t("userRegister"),sub:data.total+" "+t("accounts")})
+      +'<div class="searchbar">'+I("search","ic-sm")
+      +'<input id="user-search" placeholder="'+t("searchUsers")+'" value="'+esc(state.userQ||"")+'"></div>'
+      +'<div class="chips">'
+      +["all","active","suspended"].map(function(k){
+         return '<button class="chip'+((state.userStatus||"all")===k?" active":"")+'" data-ustatus="'+k+'">'
+           +t("filter_"+k)+'</button>';}).join("")
+      +'</div>'
+      +(data.users.length?'<div class="ulist">'+rows+'</div>'
+        :'<div class="empty"><img src="assets/empty-listings.png" alt=""><h3>'+t("noUsers")+'</h3></div>')
+      +'<div style="height:16px"></div></section>';
+  };
+
+  S.userdetail=function(p){
+    var u=(state.adminUserDetail&&String(state.adminUserDetail.id)===String(p.id))
+          ? state.adminUserDetail : null;
+    if(!u) return '<section class="screen">'+bar({back:"users",title:t("account")})
+      +'<div class="empty"><p>'+t("saving")+'</p></div></section>';
+    function row(k,v){ return '<div class="arow"><span class="k">'+k+'</span><span>'+v+'</span></div>'; }
+    return '<section class="screen">'+bar({back:"users",title:esc(u.name||t("unknownUser"))})
+      +'<div class="admin-card" style="margin-top:14px"><div class="abody">'
+      + row(t("mobileLabel"), esc(u.phone))
+      + row(t("yourLocation"), esc(u.locality||"-"))
+      + row(t("district"), esc(u.district||"-"))
+      + row(t("language"), u.lang==="ta"?"\u0ba4\u0bae\u0bbf\u0bb4\u0bcd":"English")
+      + row(t("allowCall"), u.allow_call?t("yes"):t("no"))
+      + row(t("allowWa"), u.allow_whatsapp?t("yes"):t("no"))
+      + row(t("joined"), fmtDate(u.created_at))
+      + row(t("lastSeen"), sinceText(u.last_seen))
+      + row(t("totalAds"), u.listings+" ("+u.active_listings+" "+t("live")+")")
+      + row(t("messages"), u.messages)
+      + row(t("reportsAgainst"), u.reports_against)
+      + row(t("status"), u.status==="suspended"
+          ? '<span class="pill rejected">'+t("suspended")+'</span>'
+          : '<span class="pill active">'+t("activeStatus")+'</span>')
+      +'</div><div class="admin-actions">'
+      +(u.role==="admin" ? '<p class="hint" style="margin:0">'+t("cannotChangeAdmin")+'</p>'
+        : (u.status==="suspended"
+          ? '<button class="btn btn-primary sm" style="flex:1" data-ustat="active" data-uid="'+u.id+'">'+t("restoreAccount")+'</button>'
+          : '<button class="btn btn-danger sm" style="flex:1" data-ustat="suspended" data-uid="'+u.id+'">'+t("suspendAccount")+'</button>'))
+      +'</div></div>'
+      +((u.listings_detail&&u.listings_detail.length)
+        ? '<div class="group-title">'+t("myListings")+'</div><div class="mine">'
+          +u.listings_detail.map(function(l){
+            return '<div class="mcard"><div class="mbody">'
+              +'<div class="title" style="font-weight:700">'+esc(l.title)+'</div>'
+              +'<div class="price" style="color:var(--green);font-weight:800">'+INR(l.price)+'</div>'
+              +'<div class="views">'+I("eye","ic-sm")+l.views+' '+t("views")
+              +' \u00b7 <span class="pill '+l.status+'">'
+              +t("tab"+l.status.charAt(0).toUpperCase()+l.status.slice(1))+'</span></div>'
+              +'</div></div>';
+          }).join("")+'</div>'
+        : "")
+      +'<div style="height:16px"></div></section>';
+  };
+
   /* ---------- router ----------
      Every screen now has a URL. Without this there is no share link, no SEO,
      push notifications cannot deep-link, and Android's back button exits the
      app instead of going back a screen - which users read as a crash. */
   var route="welcome", params={};
-  var DEEP = {listing:"id", chat:"id", seller:"id", browse:"cat", mylistings:"tab"};
+  var DEEP = {listing:"id", chat:"id", seller:"id", browse:"cat", mylistings:"tab", userdetail:"id"};
 
   function routeToHash(r,p){
     p=p||{};
@@ -1221,6 +1366,41 @@
         toast(t("markedRead")); go("notifications"); });
     }
     if(route==="chat") wireChat();
+    if(route==="users"){
+      var us2=document.getElementById("user-search");
+      if(us2){
+        var tmr=null;
+        us2.addEventListener("input",function(){
+          state.userQ=this.value;
+          clearTimeout(tmr);
+          // debounce: a query per keystroke would hammer the Pi
+          tmr=setTimeout(function(){
+            API.adminUsers({q:state.userQ||"",
+              status:(state.userStatus&&state.userStatus!=="all")?state.userStatus:"",limit:100})
+              .then(function(r){ state.adminUsers=r; if(route==="users"){
+                 var sc=app().scrollTop; _go("users"); app().scrollTop=sc;
+                 var b=document.getElementById("user-search");
+                 if(b){ b.focus(); b.setSelectionRange(b.value.length,b.value.length); }
+              }}).catch(apiFail);
+          },400);
+        });
+      }
+    }
+    if(route==="staff"){
+      var dl=document.getElementById("dl-users");
+      if(dl) dl.addEventListener("click",function(){
+        // the CSV route needs the bearer token, so fetch then save
+        fetch(API.usersCsvUrl(),{headers:{Authorization:"Bearer "+API.token}})
+          .then(function(r){ return r.blob(); })
+          .then(function(b){
+            var a=document.createElement("a");
+            a.href=URL.createObjectURL(b); a.download="namma-santhai-users.csv";
+            document.body.appendChild(a); a.click();
+            setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1000);
+            toast(t("exportDone"));
+          }).catch(function(){ toast(t("offlineTitle")); });
+      });
+    }
     if(route==="settings") wireSettings();
     if(route==="offline"){
       var rc=document.getElementById("retry-conn");
@@ -1417,7 +1597,7 @@
 
   /* ---------- global delegation ---------- */
   document.addEventListener("click",function(e){
-    var el=e.target.closest("[data-go],[data-setlang],[data-open],[data-chip],[data-seller],[data-chat],[data-msg],[data-call],[data-wa],[data-share],[data-notif],[data-edit],[data-sold],[data-del],[data-mytab],[data-toggle],[data-approve],[data-reject],[data-confirm-reject],[data-noop],[data-fav],[data-radius],[data-report],[data-block],[data-report-reason],[data-sheet-close],[data-rep-act]");
+    var el=e.target.closest("[data-go],[data-setlang],[data-open],[data-chip],[data-seller],[data-chat],[data-msg],[data-call],[data-wa],[data-share],[data-notif],[data-edit],[data-sold],[data-del],[data-mytab],[data-toggle],[data-approve],[data-reject],[data-confirm-reject],[data-noop],[data-fav],[data-radius],[data-report],[data-block],[data-report-reason],[data-sheet-close],[data-rep-act],[data-user],[data-ustatus],[data-ustat]");
     if(!el) return;
     if(el.hasAttribute("data-noop")){ return; }
     var g=el.getAttribute("data-go"); if(g){ go(g); return; }
@@ -1472,6 +1652,18 @@
       if(LIVE){ var pch={}; pch[tg==="call"?"allow_call":"allow_whatsapp"]=state.user[tg];
         API.updateMe(pch).then(function(){ toast(t("savedToast")); }).catch(apiFail); }
       else toast(t("savedToast")); return; }
+    var ud=el.getAttribute("data-user"); if(ud){ go("userdetail",{id:ud}); return; }
+    var us=el.getAttribute("data-ustatus"); if(us){ state.userStatus=us; go("users"); return; }
+    var ust=el.getAttribute("data-ustat");
+    if(ust){
+      var tid=el.getAttribute("data-uid");
+      if(ust==="suspended" && !window.confirm(t("confirmSuspend"))) return;
+      API.adminSetStatus(tid,ust).then(function(){
+        toast(ust==="suspended"?t("accountSuspended"):t("accountRestored"));
+        state.adminUserDetail=null; go("userdetail",{id:tid});
+      }).catch(apiFail);
+      return;
+    }
     var ra=el.getAttribute("data-rep-act");
     if(ra){
       var rid=el.getAttribute("data-rep");
@@ -1840,6 +2032,17 @@
         var others = state.listings.filter(function(l){return l.owner!=="me";});
         state.listings = others.concat((r.listings||[]).map(mapListing));
       }));
+    }
+    if(route==="staff"){
+      jobs.push(API.adminStats().then(function(r){ state.stats=r; }));
+    }
+    if(route==="users"){
+      jobs.push(API.adminUsers({q:state.userQ||"",
+        status:(state.userStatus&&state.userStatus!=="all")?state.userStatus:"",limit:100})
+        .then(function(r){ state.adminUsers=r; }));
+    }
+    if(route==="userdetail" && params && params.id){
+      jobs.push(API.adminUser(params.id).then(function(r){ state.adminUserDetail=r.user; }));
     }
     if(route==="reports"){
       jobs.push(API.reports().then(function(r){ state.reports=r.reports||[]; }));

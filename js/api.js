@@ -99,6 +99,15 @@ window.NS_API = (function () {
     reportListing: function (id, reason, detail) { return req("POST", "/api/listings/" + id + "/report", { reason: reason, detail: detail || "" }); },
     blockUser: function (id) { return req("POST", "/api/users/" + id + "/block"); },
     unblockUser: function (id) { return req("DELETE", "/api/users/" + id + "/block"); },
+    adminStats: function () { return req("GET", "/api/admin/stats"); },
+    adminUsers: function (params) {
+      var qs = Object.keys(params || {}).filter(function (k) { return params[k] !== "" && params[k] != null; })
+        .map(function (k) { return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]); }).join("&");
+      return req("GET", "/api/admin/users" + (qs ? "?" + qs : ""));
+    },
+    adminUser: function (id) { return req("GET", "/api/admin/users/" + id); },
+    adminSetStatus: function (id, status) { return req("POST", "/api/admin/users/" + id + "/status", { status: status }); },
+    usersCsvUrl: function () { return (this.base || "") + "/api/admin/export/users.csv"; },
     reports: function () { return req("GET", "/api/admin/reports"); },
     resolveReport: function (id, action) { return req("POST", "/api/admin/reports/" + id + "/resolve", { action: action }); },
 

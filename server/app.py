@@ -891,6 +891,158 @@ def blocked_ids(con, uid):
     return {r["o"] for r in rows}
 
 
+@app.get("/api/admin/stats")
+@require_admin
+def admin_stats():
+    """The numbers staff actually need on one screen."""
+    con = D.connect()
+    now = D.now()
+    day, week = now - 86400, now - 7 * 86400
+    q = lambda sql, *a: con.execute(sql, a).fetchone()[0]
+    out = {
+        "users": q("SELECT COUNT(*) FROM users"),
+        "users_new_24h": q("SELECT COUNT(*) FROM users WHERE created_at>?", day),
+        "users_new_7d": q("SELECT COUNT(*) FROM users WHERE created_at>?", week),
+        "users_active_7d": q("SELECT COUNT(*) FROM users WHERE last_seen>?", week),
+        "users_suspended": q("SELECT COUNT(*) FROM users WHERE status='suspended'"),
+        "listings_active": q("SELECT COUNT(*) FROM listings WHERE status='active'"),
+        "listings_pending": q("SELECT COUNT(*) FROM listings WHERE status='pending'"),
+        "listings_sold": q("SELECT COUNT(*) FROM listings WHERE status='sold'"),
+        "listings_new_7d": q("SELECT COUNT(*) FROM listings WHERE created_at>?", week),
+        "messages_7d": q("SELECT COUNT(*) FROM messages WHERE created_at>?", week),
+        "reports_open": q("SELECT COUNT(*) FROM reports WHERE status='open'"),
+        "contactable": q("SELECT COUNT(*) FROM users WHERE allow_call=1 OR allow_whatsapp=1"),
+    }
+    out["by_category"] = [
+        {"category": r["category"], "n": r["n"]}
+        for r in con.execute(
+            "SELECT category, COUNT(*) n FROM listings WHERE status='active' "
+            "GROUP BY category ORDER BY n DESC")]
+    con.close()
+    return jsonify(out)
+
+
+def _user_row(con, u):
+    uid = u["id"]
+    n = lambda sql: con.execute(sql, (uid,)).fetchone()[0]
+    return {
+        "id": uid,
+        "name": u["name"] or "",
+        # Staff administering the marketplace need to identify an account, so
+        # the number is shown HERE - and only here, behind the admin role. It
+        # is still never exposed on a public profile without consent.
+        "phone": "+91" + u["phone"],
+        "locality": u["locality"] or "",
+        "district": u["district"] or "",
+        "role": u["role"],
+        "status": u["status"],
+        "lang": u["lang"],
+        "allow_call": bool(u["allow_call"]),
+        "allow_whatsapp": bool(u["allow_whatsapp"]),
+        "created_at": u["created_at"],
+        "last_seen": u["last_seen"],
+        "listings": n("SELECT COUNT(*) FROM listings WHERE owner_id=? AND status!='deleted'"),
+        "active_listings": n("SELECT COUNT(*) FROM listings WHERE owner_id=? AND status='active'"),
+        "messages": n("SELECT COUNT(*) FROM messages WHERE sender_id=?"),
+        "reports_against": n("SELECT COUNT(*) FROM reports WHERE reported_user_id=?"),
+    }
+
+
+@app.get("/api/admin/users")
+@require_admin
+def admin_users():
+    qtext = (request.args.get("q") or "").strip()
+    status = (request.args.get("status") or "").strip()
+    try:
+        limit = max(1, min(int(request.args.get("limit", 50)), 200))
+        offset = max(0, int(request.args.get("offset", 0)))
+    except (TypeError, ValueError):
+        limit, offset = 50, 0
+    sql = "SELECT * FROM users WHERE 1=1"
+    args = []
+    if qtext:
+        sql += " AND (name LIKE ? OR phone LIKE ? OR locality LIKE ?)"
+        like = "%" + qtext + "%"
+        args += [like, like, like]
+    if status in ("active", "suspended"):
+        sql += " AND status=?"
+        args.append(status)
+    total = 0
+    con = D.connect()
+    total = con.execute("SELECT COUNT(*) FROM (" + sql + ")", args).fetchone()[0]
+    sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    rows = con.execute(sql, args + [limit, offset]).fetchall()
+    out = [_user_row(con, u) for u in rows]
+    con.close()
+    return jsonify({"users": out, "total": total, "limit": limit, "offset": offset})
+
+
+@app.get("/api/admin/users/<int:uid>")
+@require_admin
+def admin_user_detail(uid):
+    con = D.connect()
+    u = con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    if not u:
+        con.close(); return err("not_found", "No such account", 404)
+    row = _user_row(con, u)
+    row["listings_detail"] = [
+        {"id": r["id"], "title": r["title"], "price": r["price"], "status": r["status"],
+         "views": r["views"], "created_at": r["created_at"]}
+        for r in con.execute(
+            "SELECT * FROM listings WHERE owner_id=? AND status!='deleted' "
+            "ORDER BY created_at DESC LIMIT 50", (uid,))]
+    con.close()
+    return jsonify({"user": row})
+
+
+@app.post("/api/admin/users/<int:uid>/status")
+@require_admin
+def admin_set_status(uid):
+    want = str((request.get_json(silent=True) or {}).get("status", "")).lower()
+    if want not in ("active", "suspended"):
+        return err("bad_status", "Unknown status")
+    if uid == g.user["id"]:
+        # An admin suspending themselves locks the only moderator out.
+        return err("self", "You cannot change your own status", 400)
+    con = D.connect()
+    u = con.execute("SELECT * FROM users WHERE id=?", (uid,)).fetchone()
+    if not u:
+        con.close(); return err("not_found", "No such account", 404)
+    con.execute("UPDATE users SET status=? WHERE id=?", (want, uid))
+    if want == "suspended":
+        con.execute("DELETE FROM sessions WHERE user_id=?", (uid,))
+        con.execute("UPDATE listings SET status='rejected',updated_at=? "
+                    "WHERE owner_id=? AND status='active'", (D.now(), uid))
+    con.commit(); con.close()
+    return jsonify({"ok": True, "status": want})
+
+
+@app.get("/api/admin/export/users.csv")
+@require_admin
+def admin_export_users():
+    """Staff asked for the register as a spreadsheet."""
+    import csv, io as _io
+    con = D.connect()
+    rows = con.execute("SELECT * FROM users ORDER BY created_at DESC").fetchall()
+    buf = _io.StringIO()
+    wr = csv.writer(buf)
+    wr.writerow(["id", "name", "phone", "district", "locality", "role", "status",
+                 "language", "allow_call", "allow_whatsapp", "listings",
+                 "active_listings", "messages", "registered", "last_seen"])
+    for u in rows:
+        r = _user_row(con, u)
+        wr.writerow([r["id"], r["name"], r["phone"], r["district"], r["locality"],
+                     r["role"], r["status"], r["lang"], r["allow_call"], r["allow_whatsapp"],
+                     r["listings"], r["active_listings"], r["messages"],
+                     time.strftime("%Y-%m-%d %H:%M", time.localtime(r["created_at"])),
+                     time.strftime("%Y-%m-%d %H:%M", time.localtime(r["last_seen"]))])
+    con.close()
+    resp = make_response(buf.getvalue())
+    resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+    resp.headers["Content-Disposition"] = "attachment; filename=namma-santhai-users.csv"
+    return resp
+
+
 @app.get("/api/admin/reports")
 @require_admin
 def admin_reports():
