@@ -778,3 +778,75 @@ select.input{appearance:none;padding-right:40px;
 @media (prefers-reduced-motion:reduce){
   .burst,.cmt-new,.detail > *,.hero .media img,.hero-top{animation:none!important;}
 }
+
+/* ============================================================================
+   MOTION PASS — the app felt static once the splash was gone.
+   Everything below is transform/opacity only so it stays cheap on a low-end
+   phone, and all of it is switched off under prefers-reduced-motion.
+   ========================================================================= */
+
+/* app bar and nav arrive with the screen rather than snapping in */
+.appbar{animation:bar-down 380ms var(--ease-out) both;}
+@keyframes bar-down{from{opacity:0;transform:translateY(-10px);}to{opacity:1;transform:none;}}
+.bottomnav{animation:nav-up 420ms var(--ease-out) 60ms both;}
+@keyframes nav-up{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
+
+/* the search bar and category rail stagger in behind them */
+.searchbar{animation:screen-in 420ms var(--ease-out) 90ms both;}
+.cats{animation:screen-in 440ms var(--ease-out) 140ms both;}
+.safety{animation:screen-in 440ms var(--ease-out) 190ms both;}
+.section-head{animation:screen-in 420ms var(--ease-out) 220ms both;}
+
+/* category tiles pop in one after another */
+.cat{animation:cat-in 420ms var(--spring) both;}
+@keyframes cat-in{from{opacity:0;transform:scale(.8) translateY(8px);}to{opacity:1;transform:none;}}
+.cat:nth-child(1){animation-delay:160ms;} .cat:nth-child(2){animation-delay:200ms;}
+.cat:nth-child(3){animation-delay:240ms;} .cat:nth-child(4){animation-delay:280ms;}
+.cat:nth-child(5){animation-delay:320ms;} .cat:nth-child(6){animation-delay:360ms;}
+.cat:nth-child(n+7){animation-delay:400ms;}
+
+/* list rows and rows of settings stagger too */
+.lrow:nth-child(1){animation-delay:30ms;} .lrow:nth-child(2){animation-delay:70ms;}
+.lrow:nth-child(3){animation-delay:110ms;} .lrow:nth-child(4){animation-delay:150ms;}
+.lrow:nth-child(n+5){animation-delay:190ms;}
+.prow{animation:screen-in 360ms var(--ease-out) both;}
+.prow:nth-of-type(1){animation-delay:40ms;} .prow:nth-of-type(2){animation-delay:80ms;}
+.prow:nth-of-type(3){animation-delay:120ms;} .prow:nth-of-type(4){animation-delay:160ms;}
+.prow:nth-of-type(n+5){animation-delay:200ms;}
+
+/* stat tiles count themselves in */
+.stat{animation:cat-in 420ms var(--spring) both;}
+.stat:nth-child(1){animation-delay:40ms;} .stat:nth-child(2){animation-delay:80ms;}
+.stat:nth-child(3){animation-delay:120ms;} .stat:nth-child(4){animation-delay:160ms;}
+.stat:nth-child(5){animation-delay:200ms;} .stat:nth-child(6){animation-delay:240ms;}
+.catbar .cb-f{animation:bar-grow 620ms var(--ease-out) 240ms both;transform-origin:left;}
+@keyframes bar-grow{from{transform:scaleX(0);}to{transform:scaleX(1);}}
+
+/* pressing things should feel physical */
+.prow:active{transform:scale(.995);}
+.chip:active,.cat:active,.urow:active{transform:scale(.95);}
+.card:active .media img{transform:scale(1.03);}
+.card .media img{transition:transform var(--dur-3) var(--ease-out);}
+
+/* the Sell button is the primary action - give it a heartbeat on arrival */
+.navbtn.sell .fab{animation:fab-in 520ms var(--spring) 220ms both;}
+@keyframes fab-in{from{opacity:0;transform:scale(.5) translateY(10px);}to{opacity:1;transform:none;}}
+
+/* empty states breathe instead of sitting dead */
+.empty img{animation:float 4.5s ease-in-out infinite;}
+@keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-7px);}}
+
+/* the bell rings once when there is something unread */
+.badge-dot{animation:pop var(--dur-3) var(--spring) both, ring 2.6s ease-in-out 1s 2;}
+@keyframes ring{0%,88%,100%{transform:rotate(0);}91%{transform:rotate(-12deg);}95%{transform:rotate(10deg);}}
+
+/* price is the thing people look for first */
+.detail .price{animation:price-in 520ms var(--spring) 120ms both;}
+@keyframes price-in{from{opacity:0;transform:translateY(8px) scale(.94);}to{opacity:1;transform:none;}}
+
+@media (prefers-reduced-motion:reduce){
+  .appbar,.bottomnav,.searchbar,.cats,.safety,.section-head,.cat,.prow,.stat,
+  .catbar .cb-f,.navbtn.sell .fab,.empty img,.badge-dot,.detail .price{
+    animation:none!important;}
+  .card .media img{transition:none!important;}
+}

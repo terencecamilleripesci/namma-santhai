@@ -1298,6 +1298,7 @@
     document.documentElement.lang=lang;
     var fn=S[route]||S.home;
     app().innerHTML = fn(params);
+    hideSplash();
     renderNav(route);
     wire();
     save();
@@ -2208,6 +2209,26 @@
     state.listings = []; state.convos = []; state.notifs = [];
     save();
   }
+
+  /* ---------- splash ----------
+     The app is rendered by JS, so until this file runs the page is empty.
+     The splash is in the HTML and painted on the first frame; we only take it
+     away once a real screen exists. A minimum on-screen time stops it
+     strobing on a fast connection. */
+  var SPLASH_MIN = 650, bootAt = Date.now(), splashDone = false;
+  function hideSplash(){
+    if(splashDone) return;
+    splashDone = true;
+    var el = document.getElementById("splash");
+    if(!el) return;
+    var wait = Math.max(0, SPLASH_MIN - (Date.now() - bootAt));
+    setTimeout(function(){
+      el.classList.add("gone");
+      setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 500);
+    }, wait);
+  }
+  // Never let a hung request leave someone staring at a logo.
+  setTimeout(hideSplash, 6000);
 
   /* ---------- boot ---------- */
   load();
